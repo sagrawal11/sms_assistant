@@ -10,7 +10,7 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
     GMAIL_WEBHOOK_SECRET = os.getenv('GMAIL_WEBHOOK_SECRET')
     GOOGLE_CREDENTIALS_FILE = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         'config',
         'client_secrets.json'
     )
@@ -34,14 +34,14 @@ class Config:
     
     # Database
     DATABASE_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         'databases',
         'personal_assistant.db'
     )
     
     # Food Database
     FOOD_DATABASE_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         'data',
         'wu_foods.json'
     )

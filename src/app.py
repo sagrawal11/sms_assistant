@@ -38,7 +38,7 @@ def daily_database_dump():
         print("🔄 Starting daily database dump at 5 AM...")
         
         # Create data directory if it doesn't exist
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
         os.makedirs(data_dir, exist_ok=True)
         
         # Get today's date for filename
@@ -245,7 +245,7 @@ def view_csv(filename):
         if filename not in allowed_files:
             return jsonify({'error': 'Invalid filename'}), 400
         
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
         csv_path = os.path.join(data_dir, filename)
         
         if not os.path.exists(csv_path):
@@ -272,7 +272,7 @@ def view_csv(filename):
 def list_csvs():
     """List all available CSV files with their sizes"""
     try:
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
         
         if not os.path.exists(data_dir):
             return jsonify({'csvs': []})
