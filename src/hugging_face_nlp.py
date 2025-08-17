@@ -74,16 +74,61 @@ class IntelligentNLPProcessor:
             return {}
     
     def _get_default_intent_examples(self):
-        """Fallback default intent examples if custom file not found"""
+        """Get default intent examples if custom ones aren't available"""
         return {
-            "water_logging": ["drank water", "had water", "finished water bottle"],
-            "food_logging": ["breakfast", "lunch", "dinner"],
-            "gym_workout": ["hit the gym", "worked out", "lifted weights"],
-            "calendar_event": ["meeting with", "appointment with", "lunch with"],
-            "schedule_check": ["what's my schedule", "show my calendar"],
-            "reminder_set": ["remind me to", "don't forget to"],
-            "todo_add": ["add to todo", "add to list"],
-            "photo_upload": ["add this photo to", "save this to"]
+            'water_logging': [
+                'drank water', 'drank a bottle', 'drank 16oz', 'drank 500ml',
+                'had water', 'consumed water', 'drank some water', 'drank half a bottle',
+                'drank 8oz', 'drank 250ml', 'drank 32oz', 'drank 1 liter'
+            ],
+            'food_logging': [
+                'ate breakfast', 'ate lunch', 'ate dinner', 'ate snack',
+                'had breakfast', 'had lunch', 'had dinner', 'had snack',
+                'consumed breakfast', 'consumed lunch', 'consumed dinner',
+                'ate chicken', 'ate rice', 'ate salad', 'ate pasta',
+                'had protein shake', 'had smoothie', 'ate apple', 'ate banana'
+            ],
+            'gym_workout': [
+                'worked out', 'went to gym', 'did workout', 'lifted weights',
+                'did cardio', 'ran', 'biked', 'swam', 'did yoga',
+                'bench pressed', 'squatted', 'deadlifted', 'did pull ups',
+                'did push ups', 'did crunches', 'did planks'
+            ],
+            'reminder_set': [
+                'remind me to', 'remind me about', 'set reminder for',
+                'remind me', 'set a reminder', 'create reminder',
+                'remind me tomorrow', 'remind me later', 'remind me tonight'
+            ],
+            'todo_add': [
+                'add todo', 'add task', 'create todo', 'create task',
+                'new todo', 'new task', 'todo', 'task',
+                'add to my list', 'add to todo list', 'add to task list'
+            ],
+            'calendar_event': [
+                'meeting with', 'meeting tomorrow', 'meeting today',
+                'lunch with', 'dinner with', 'coffee with',
+                'appointment', 'appointment with', 'appointment tomorrow',
+                'block my schedule', 'block out time', 'schedule meeting',
+                'add event', 'create event', 'new event'
+            ],
+            'schedule_check': [
+                'what\'s my schedule', 'what\'s my schedule looking like',
+                'what\'s on my schedule', 'what do I have today',
+                'what do I have tomorrow', 'what\'s on my calendar',
+                'show my schedule', 'show my calendar', 'check my schedule',
+                'check my calendar', 'what\'s happening', 'what\'s going on',
+                'schedule for today', 'schedule for tomorrow', 'my schedule today',
+                'my schedule tomorrow', 'what\'s planned', 'what\'s coming up'
+            ],
+            'photo_upload': [
+                'save this photo', 'save photo', 'upload photo', 'add photo',
+                'save image', 'upload image', 'add image', 'save picture',
+                'upload picture', 'add picture', 'save receipt', 'save document'
+            ],
+            'drive_organization': [
+                'organize this', 'put this in', 'move this to', 'save this to',
+                'add to folder', 'organize in', 'categorize this', 'file this'
+            ]
         }
     
     def _create_intent_examples(self):
@@ -94,21 +139,30 @@ class IntelligentNLPProcessor:
         return examples
     
     def clean_message(self, message: str) -> str:
-        """Clean message by removing Google Voice metadata, formatting, and fixing common typos"""
-        # Remove Google Voice metadata
-        message = re.sub(r'<https://voice\.google\.com[^>]*>', '', message)
-        message = re.sub(r'your account <https://[^>]*>', '', message)
-        message = re.sub(r'google llc[^>]*usa', '', message)
-        message = re.sub(r'\r\n', ' ', message)
+        """Clean and normalize the message text"""
+        if not message:
+            return ""
         
-        # Clean up extra whitespace
+        # Remove Google Voice metadata and URLs
+        message = re.sub(r'<https?://[^>]+>', '', message)
+        message = re.sub(r'YOUR ACCOUNT HELP CENTER', '', message)
+        message = re.sub(r'1707989', '', message)
+        message = re.sub(r'1600 Am', '', message)
+        message = re.sub(r'94043', '', message)
+        message = re.sub(r'00 Am', '', message)
+        
+        # Remove common Google Voice artifacts
+        message = re.sub(r'[0-9]{7,}', '', message)  # Remove long numbers
+        message = re.sub(r'\b[0-9]{1,2}\s+[AP]m\b', '', message)  # Remove time artifacts
+        
+        # Remove extra whitespace and normalize
         message = re.sub(r'\s+', ' ', message)
         message = message.strip()
         
-        # Fix common food-related typos
+        # Fix common typos
         message = self._fix_common_typos(message)
         
-        # Spell check and correct
+        # Spell check the message
         message = self._spell_check_message(message)
         
         return message
@@ -200,78 +254,79 @@ class IntelligentNLPProcessor:
         return best_intent
     
     def _fallback_classification(self, message: str) -> str:
-        """Enhanced fallback classification using keyword matching for edge cases"""
+        """Fallback classification using keyword patterns when semantic similarity fails"""
         message_lower = message.lower()
         
-        # Priority-based classification for mixed intent messages
-        # Check for calendar events first (highest priority)
-        calendar_keywords = ['meeting', 'appointment', 'call', 'lunch', 'dinner', 'coffee', 'sync', 'standup', 'presentation', 'block out', 'schedule']
-        if any(keyword in message_lower for keyword in calendar_keywords):
-            # Special handling for mixed calendar + reminder messages
-            if any(word in message_lower for word in ['remind', 'reminder', 'don\'t forget']):
-                # If it's a calendar event with reminder, prioritize calendar
-                return 'calendar_event'
+        # Priority order: schedule > calendar > food > water > gym > reminders > todos > photo > drive
+        
+        # Schedule queries (highest priority)
+        schedule_patterns = [
+            'schedule', 'what\'s', 'what is', 'what do i have', 'what\'s happening',
+            'what\'s going on', 'what\'s planned', 'what\'s coming up', 'check my',
+            'show my', 'my schedule', 'my calendar'
+        ]
+        if any(pattern in message_lower for pattern in schedule_patterns):
+            return 'schedule_check'
+        
+        # Calendar events
+        calendar_patterns = [
+            'meeting', 'appointment', 'lunch with', 'dinner with', 'coffee with',
+            'block', 'schedule', 'add event', 'create event', 'new event'
+        ]
+        if any(pattern in message_lower for pattern in calendar_patterns):
             return 'calendar_event'
         
-        # Check for food logging BEFORE gym workouts (higher priority for food)
+        # Food logging (prioritize over gym)
         food_patterns = [
-            r'breakfast:\s*', r'lunch:\s*', r'dinner:\s*', r'snack:\s*', r'meal:\s*',
-            r'ate\s+\w+', r'had\s+\w+', r'consumed\s+\w+', r'breakfast\s+', r'lunch\s+', r'dinner\s+',
-            r'ice\s+cream', r'chicken', r'beef', r'pork', r'fish', r'salmon', r'tuna',
-            r'rice', r'pasta', r'bread', r'toast', r'eggs', r'oatmeal', r'cereal',
-            r'apple', r'banana', r'orange', r'grapes', r'berries', r'vegetables',
-            r'broccoli', r'carrots', r'spinach', r'lettuce', r'tomato', r'onion',
-            r'potato', r'sweet\s+potato', r'corn', r'peas', r'beans', r'nuts',
-            r'almonds', r'walnuts', r'peanuts', r'protein\s+bar', r'shake', r'smoothie',
-            r'tub\s+of', r'piece\s+of', r'slice\s+of', r'bowl\s+of', r'plate\s+of'
+            'ate', 'had', 'consumed', 'breakfast', 'lunch', 'dinner', 'snack',
+            'chicken', 'rice', 'salad', 'pasta', 'protein', 'shake', 'smoothie',
+            'apple', 'banana', 'ice cream', 'tub of', 'half of', 'quarter of'
         ]
-        for pattern in food_patterns:
-            if re.search(pattern, message_lower):
-                return 'food_logging'
+        if any(pattern in message_lower for pattern in food_patterns):
+            return 'food_logging'
         
-        # Check for water logging
-        water_keywords = ['water', 'drank', 'hydrated', 'bottle', 'glass', 'hydrate']
-        if any(keyword in message_lower for keyword in water_keywords):
+        # Water logging
+        water_patterns = [
+            'drank', 'water', 'bottle', 'oz', 'ml', 'liter', 'litre'
+        ]
+        if any(pattern in message_lower for pattern in water_patterns):
             return 'water_logging'
         
-        # Check for gym workouts (lower priority than food)
-        gym_keywords = ['workout', 'gym', 'exercise', 'hit', 'bench', 'squat', 'deadlift', 'reps', 'sets', 'chest', 'back', 'legs', 'arms', 'shoulders']
-        if any(keyword in message_lower for keyword in gym_keywords):
+        # Gym workouts
+        gym_patterns = [
+            'workout', 'gym', 'lifted', 'bench', 'squat', 'deadlift', 'pull up',
+            'push up', 'crunch', 'plank', 'cardio', 'ran', 'biked', 'swam'
+        ]
+        if any(pattern in message_lower for pattern in gym_patterns):
             return 'gym_workout'
         
-        # Check for reminders
-        reminder_keywords = ['remind', 'reminder', 'alarm', 'don\'t forget', 'set reminder', 'set alarm']
-        if any(keyword in message_lower for keyword in reminder_keywords):
+        # Reminders
+        reminder_patterns = [
+            'remind', 'reminder', 'don\'t forget', 'remember to'
+        ]
+        if any(pattern in message_lower for pattern in reminder_patterns):
             return 'reminder_set'
         
-        # Check for todos
-        todo_keywords = ['todo', 'add to', 'need to', 'remember to', 'list']
-        if any(keyword in message_lower for keyword in todo_keywords):
+        # Todos
+        todo_patterns = [
+            'todo', 'task', 'add to', 'create', 'new'
+        ]
+        if any(pattern in message_lower for pattern in todo_patterns):
             return 'todo_add'
         
-        # Check for photo upload with better pattern matching
+        # Photo uploads
         photo_patterns = [
-            r'add\s+(?:this\s+)?(?:photo|image|receipt|document)',
-            r'save\s+(?:this\s+)?(?:photo|image|receipt|document)',
-            r'upload\s+(?:this\s+)?(?:photo|image|receipt|document)',
-            r'organize\s+(?:this\s+)?(?:photo|image|receipt|document)',
-            r'store\s+(?:this\s+)?(?:photo|image|receipt|document)'
+            'photo', 'image', 'picture', 'receipt', 'document', 'save this'
         ]
-        for pattern in photo_patterns:
-            if re.search(pattern, message_lower):
-                return 'photo_upload'
+        if any(pattern in message_lower for pattern in photo_patterns):
+            return 'photo_upload'
         
-        # Check for schedule queries with better pattern matching
-        schedule_patterns = [
-            r'what\s+(?:is|are)\s+(?:my\s+)?(?:schedule|calendar)',
-            r'show\s+(?:me\s+)?(?:my\s+)?(?:schedule|calendar)',
-            r'check\s+(?:my\s+)?(?:schedule|calendar)',
-            r'am\s+I\s+(?:free|busy|available)',
-            r'what\s+(?:meetings|appointments)\s+do\s+I\s+have'
+        # Drive organization
+        drive_patterns = [
+            'organize', 'folder', 'categorize', 'file', 'put in', 'move to'
         ]
-        for pattern in schedule_patterns:
-            if re.search(pattern, message_lower):
-                return 'schedule_check'
+        if any(pattern in message_lower for pattern in drive_patterns):
+            return 'drive_organization'
         
         return 'unknown'
     
@@ -721,32 +776,38 @@ class IntelligentNLPProcessor:
         return exercises
     
     def parse_food(self, message: str) -> Optional[Dict]:
-        """Parse food information from message"""
-        entities = self.extract_entities(message)
+        """Parse food logging from message"""
+        if not self.food_db:
+            return None
         
-        # Extract food items
-        foods = entities.get('foods', [])
-        if not foods:
-            # Try to extract food from the message
-            foods = self._extract_food_from_text(message)
+        # Clean the message
+        clean_message = self.clean_message(message).lower()
         
-        # Extract quantities
-        quantities = entities.get('quantities', [])
+        # Look for food items in the database
+        found_foods = []
         
-        # Extract date
-        date = None
-        if entities.get('dates'):
-            date_info = entities['dates'][0]
-            if date_info['type'] == 'relative':
-                date = datetime.now() + timedelta(days=date_info['days_offset'])
-            else:
-                date = date_info['value']
+        # Check each food item in the database
+        for food_name, food_data in self.food_db.items():
+            if food_name in clean_message:
+                found_foods.append({
+                    'name': food_name,
+                    'data': food_data
+                })
+        
+        if not found_foods:
+            return None
+        
+        # Extract portion information
+        portion_multiplier = self.parse_portion_multiplier(clean_message)
+        
+        # Return the first found food (you could enhance this to handle multiple foods)
+        food_item = found_foods[0]
         
         return {
-            'date': date or datetime.now(),
-            'foods': foods,
-            'quantities': quantities,
-            'message': message
+            'food_name': food_item['name'],
+            'food_data': food_item['data'],
+            'portion_multiplier': portion_multiplier,
+            'restaurant': food_item['data'].get('restaurant', 'unknown')
         }
     
     def _extract_food_from_text(self, message: str) -> List[str]:

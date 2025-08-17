@@ -1,20 +1,37 @@
 import os
 import sys
+import json
+import atexit
+import sqlite3
+from datetime import datetime, timedelta
+from flask import Flask, request, jsonify
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+
+# Add src directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request, jsonify
-import sqlite3
-import json
-from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
-from src.config import Config
-from src.hugging_face_nlp import create_intelligent_processor
-from src.google_services import GoogleServicesManager
-import base64
+from config import Config
+from hugging_face_nlp import create_intelligent_processor
+from google_services import GoogleServicesManager
+
+# Check if another instance is already running
+def check_single_instance():
+    """Check if another instance of the app is already running"""
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('localhost', 5001))
+        sock.close()
+        return True
+    except OSError:
+        print("❌ Another instance is already running on port 5001")
+        print("   Please stop the other instance first")
+        return False
 
 # Initialize Flask app
 app = Flask(__name__)
+app.config.from_object(Config)
 
 # Load configuration
 config = Config()
@@ -31,111 +48,108 @@ except ValueError as e:
 # Initialize Google services
 google_services = GoogleServicesManager()
 
-# Initialize scheduler
-scheduler = BackgroundScheduler()
-scheduler.start()
+# Initialize scheduler with better configuration
+scheduler = BackgroundScheduler(
+    job_defaults={
+        'coalesce': True,  # Combine multiple pending jobs
+        'max_instances': 1,  # Only allow 1 instance of each job
+        'misfire_grace_time': 15  # Grace period for missed executions
+    }
+)
+
+# Add Gmail polling job
+scheduler.add_job(
+    func=check_gmail_for_sms,
+    trigger=IntervalTrigger(seconds=5),
+    id='check_gmail_for_sms',
+    name='Gmail SMS Polling',
+    replace_existing=True
+)
+
+# Add morning check-in job
+scheduler.add_job(
+    func=morning_checkin,
+    trigger='cron',
+    hour=config.MORNING_CHECKIN_HOUR,
+    id='morning_checkin',
+    name='Morning Check-in',
+    replace_existing=True
+)
 
 # Database initialization
 def init_db():
+    """Initialize the database with all required tables"""
     conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
     
-    # Water logs
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS water_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            amount_ml INTEGER,
-            notes TEXT
-        )
-    ''')
-    
-    # Food logs
+    # Create food logs table with enhanced fields
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS food_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            food_name TEXT,
-            calories INTEGER,
-            protein REAL,
-            carbs REAL,
-            fat REAL,
+            food_name TEXT NOT NULL,
+            calories INTEGER NOT NULL,
+            protein REAL NOT NULL,
+            carbs REAL NOT NULL,
+            fat REAL NOT NULL,
+            restaurant TEXT,
+            portion_multiplier REAL DEFAULT 1.0
+        )
+    ''')
+    
+    # Create water logs table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS water_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            amount_ml REAL NOT NULL,
+            amount_oz REAL NOT NULL
+        )
+    ''')
+    
+    # Create gym logs table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS gym_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            exercise TEXT NOT NULL,
+            sets INTEGER,
+            reps INTEGER,
+            weight REAL,
             notes TEXT
         )
     ''')
     
-    # Todos
+    # Create reminders and todos table
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS todos (
+        CREATE TABLE IF NOT EXISTS reminders_todos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME,
-            priority INTEGER DEFAULT 1
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            due_date DATETIME,
+            completed BOOLEAN DEFAULT FALSE,
+            completed_at DATETIME
         )
     ''')
     
-    # Reminders
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reminders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT,
-            scheduled_time DATETIME,
-            sent BOOLEAN DEFAULT FALSE,
-            completed_at DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Gym logs
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS gym_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date DATE,
-            muscle_groups TEXT,
-            exercises TEXT,
-            notes TEXT,
-            duration INTEGER
-        )
-    ''')
-    
-    # Calendar events cache
+    # Create calendar events cache table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS calendar_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            google_event_id TEXT UNIQUE,
-            summary TEXT,
-            start_time DATETIME,
+            google_event_id TEXT UNIQUE NOT NULL,
+            summary TEXT NOT NULL,
+            start_time DATETIME NOT NULL,
             end_time DATETIME,
             location TEXT,
             description TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Image uploads tracking
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS image_uploads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT,
-            drive_file_id TEXT,
-            category TEXT,
-            original_message TEXT,
-            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Processed Gmail messages tracking
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS processed_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message_id TEXT UNIQUE,
-            processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
     conn.commit()
     conn.close()
+    print("✅ Database initialized with all tables")
 
 # Load hardcoded food database
 def load_food_database():
@@ -224,19 +238,37 @@ class EnhancedMessageProcessor:
         conn.close()
     
     def handle_food(self, message, entities):
-        """Handle food logging using enhanced NLP processor"""
-        foods = entities.get('foods', [])
-        if foods:
-            food_info = self.parse_food_from_entities(message, foods[0])
-            if food_info:
-                self.log_food(food_info)
-                return f"✅ Logged {food_info['calories']} cal ({food_info['protein']}p/{food_info['carbs']}c/{food_info['fat']}f)"
-            else:
-                # Unknown food - log and remind
-                unknown_food = foods[0]
-                self.log_unknown_food(unknown_food)
-                self.schedule_food_reminder(unknown_food)
-                return f"Logged '{unknown_food}' as unknown food. I'll remind you tonight to add the macros."
+        """Handle food logging"""
+        food_data = self.nlp_processor.parse_food(message)
+        if food_data:
+            # Extract nutrition info
+            food_info = food_data['food_data']
+            portion_mult = food_data['portion_multiplier']
+            
+            # Calculate actual nutrition based on portion
+            calories = int(food_info['calories'] * portion_mult)
+            protein = round(food_info['protein'] * portion_mult, 1)
+            carbs = round(food_info['carbs'] * portion_mult, 1)
+            fat = round(food_info['fat'] * portion_mult, 1)
+            
+            # Log to database
+            self.log_food(
+                food_name=food_data['food_name'],
+                calories=calories,
+                protein=protein,
+                carbs=carbs,
+                fat=fat,
+                restaurant=food_data['restaurant'],
+                portion_multiplier=portion_mult
+            )
+            
+            # Format response
+            serving_info = f" ({food_info['serving_size']})" if 'serving_size' in food_info else ""
+            response = f"🍽️ Logged {food_data['food_name'].replace('_', ' ').title()}{serving_info}\n"
+            response += f"📊 Nutrition: {calories} cal, {protein}g protein, {carbs}g carbs, {fat}g fat"
+            
+            return response
+        
         return None
     
     def parse_food_from_entities(self, message, food_name):
@@ -255,15 +287,14 @@ class EnhancedMessageProcessor:
                 }
         return None
     
-    def log_food(self, food_info):
+    def log_food(self, food_name, calories, protein, carbs, fat, restaurant=None, portion_multiplier=1.0):
         """Log food to database"""
         conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO food_logs (food_name, calories, protein, carbs, fat)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (food_info['name'], food_info['calories'], 
-              food_info['protein'], food_info['carbs'], food_info['fat']))
+            INSERT INTO food_logs (food_name, calories, protein, carbs, fat, restaurant, portion_multiplier)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (food_name, calories, protein, carbs, fat, restaurant, portion_multiplier))
         conn.commit()
         conn.close()
     
@@ -574,14 +605,14 @@ def sms_webhook():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route('/health', methods=['GET'])
+@app.route('/health')
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for local testing"""
     return jsonify({
         "status": "healthy", 
         "timestamp": datetime.now().isoformat(),
-        "google_services": "active",
-        "nlp_processor": "enhanced"
+        "service": "Alfred the Butler (Local)",
+        "environment": "development"
     })
 
 @app.route('/debug', methods=['GET'])
@@ -815,13 +846,13 @@ def check_gmail_for_sms():
         print(f"Error in Gmail SMS check: {e}")
 
 # Schedule morning check-in
-scheduler.add_job(
-    func=morning_checkin,
-    trigger="cron",
-    hour=config.MORNING_CHECKIN_HOUR,
-    minute=0,
-    id='morning_checkin'
-)
+# scheduler.add_job(
+#     func=morning_checkin,
+#     trigger="cron",
+#     hour=config.MORNING_CHECKIN_HOUR,
+#     minute=0,
+#     id='morning_checkin'
+# )
 
 # Schedule reminder checks every minute
 scheduler.add_job(
@@ -832,29 +863,41 @@ scheduler.add_job(
 )
 
 # Schedule Gmail SMS checks every 5 seconds
-scheduler.add_job(
-    func=check_gmail_for_sms,
-    trigger="interval",
-    seconds=5,
-    id='gmail_sms_check'
-)
+# scheduler.add_job(
+#     func=check_gmail_for_sms,
+#     trigger="interval",
+#     seconds=5,
+#     id='gmail_sms_check'
+# )
 
 # Cleanup
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    print("🚀 Initializing Enhanced Personal SMS Assistant...")
+    print("🚀 Initializing Alfred the Butler...")
     print("Features: Google Voice + Gmail, Drive, Calendar, Enhanced NLP, Push Notifications")
     
+    # Check for single instance
+    if not check_single_instance():
+        exit(1)
+
+    # Initialize database
     init_db()
     print("Database initialized.")
     
-    port = int(os.environ.get('PORT', 5001))
-    print(f"Starting Flask app on port {port}...")
+    # Start the scheduler
+    scheduler.start()
     print(f"Morning check-in scheduled for {config.MORNING_CHECKIN_HOUR}:00 AM")
     print(f"📱 Gmail SMS polling: Every 5 seconds")
     print(f"📱 Responses via: Push Notifications")
     print(f"Gmail webhook endpoint: /webhook/gmail")
     print(f"Legacy SMS endpoint: /webhook/sms")
     
-    app.run(debug=False, host='0.0.0.0', port=port)
+    # Local development port
+    port = 5001
+    print(f"Starting Flask app on port {port}...")
+    
+    # Register cleanup function
+    atexit.register(lambda: scheduler.shutdown())
+    
+    app.run(host='localhost', port=port, debug=False)
