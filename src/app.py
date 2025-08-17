@@ -197,41 +197,7 @@ def check_reminders():
     except Exception as e:
         print(f"❌ Error checking reminders: {e}")
 
-# Initialize the scheduler
-scheduler = BackgroundScheduler(
-    job_defaults={
-        'coalesce': True,
-        'max_instances': 1,
-        'misfire_grace_time': 15
-    }
-)
-
-# Add jobs to scheduler
-scheduler.add_job(
-    func=morning_checkin,
-    trigger='cron',
-    hour=config.MORNING_CHECKIN_HOUR,
-    id='morning_checkin',
-    name='Morning Check-in',
-    replace_existing=True
-)
-
-scheduler.add_job(
-    func=check_reminders,
-    trigger=IntervalTrigger(minutes=1),
-    id='check_reminders',
-    name='Reminder Checker',
-    replace_existing=True
-)
-
-scheduler.add_job(
-    func=daily_database_dump,
-    trigger='cron',
-    hour=5,
-    id='daily_dump',
-    name='Daily Database Dump',
-    replace_existing=True
-)
+# Scheduler will be initialized after all functions are defined
 
 @app.route('/csv/<filename>')
 def view_csv(filename):
@@ -1064,6 +1030,42 @@ def check_pending_reminders():
         print(f"Error checking reminders: {e}")
 
 # Old Gmail SMS checking function removed - now using SignalWire webhooks
+
+# Initialize the scheduler (after all functions are defined)
+scheduler = BackgroundScheduler(
+    job_defaults={
+        'coalesce': True,
+        'max_instances': 1,
+        'misfire_grace_time': 15
+    }
+)
+
+# Add jobs to scheduler
+scheduler.add_job(
+    func=morning_checkin,
+    trigger='cron',
+    hour=config.MORNING_CHECKIN_HOUR,
+    id='morning_checkin',
+    name='Morning Check-in',
+    replace_existing=True
+)
+
+scheduler.add_job(
+    func=check_reminders,
+    trigger=IntervalTrigger(minutes=1),
+    id='check_reminders',
+    name='Reminder Checker',
+    replace_existing=True
+)
+
+scheduler.add_job(
+    func=daily_database_dump,
+    trigger='cron',
+    hour=5,
+    id='daily_dump',
+    name='Daily Database Dump',
+    replace_existing=True
+)
 
 # Cleanup
 atexit.register(lambda: scheduler.shutdown())
