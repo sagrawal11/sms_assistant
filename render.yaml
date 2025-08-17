@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: alfred-the-butler
+    env: python
+    buildCommand: pip install -r config/requirements.txt
+    startCommand: cd src && python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: PORT
+        value: 5001
+    healthCheckPath: /health
+    autoDeploy: true

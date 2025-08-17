@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 from hugging_face_nlp import create_intelligent_processor
 from google_services import GoogleServicesManager
+from communication_service import CommunicationService
 
 # Check if another instance is already running
 def check_single_instance():
@@ -131,6 +132,10 @@ def daily_database_dump():
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Initialize services
+google_services = GoogleServicesManager()
+communication_service = CommunicationService()
+
 # Load configuration
 config = Config()
 
@@ -144,7 +149,7 @@ except ValueError as e:
     exit(1)
 
 # Initialize Google services
-google_services = GoogleServicesManager()
+# google_services = GoogleServicesManager() # This line is now redundant as it's initialized above
 
 def check_reminders():
     """Check for due reminders and send push notifications"""
@@ -164,18 +169,21 @@ def check_reminders():
         due_reminders = cursor.fetchall()
         
         for reminder_id, content, due_date in due_reminders:
-            # Send push notification
+            # Send reminder via communication service
             message = f"⏰ REMINDER: {content}"
-            google_services.send_push_notification(message)
+            result = communication_service.send_response(message)
             
-            # Mark as completed
-            cursor.execute('''
-                UPDATE reminders_todos 
-                SET completed = TRUE, completed_at = ? 
-                WHERE id = ?
-            ''', (current_time, reminder_id))
-            
-            print(f"🔔 Reminder sent: {content}")
+            if result['success']:
+                print(f"🔔 Reminder sent via {result['method']}: {content}")
+                
+                # Mark as completed
+                cursor.execute('''
+                    UPDATE reminders_todos 
+                    SET completed = TRUE, completed_at = ? 
+                    WHERE id = ?
+                ''', (current_time, reminder_id))
+            else:
+                print(f"❌ Failed to send reminder: {result.get('error', 'Unknown error')}")
         
         conn.commit()
         conn.close()
@@ -771,6 +779,42 @@ class EnhancedMessageProcessor:
         return "🤔 I didn't understand that. Try:\n• 'drank a bottle' (water)\n• 'ate [food]' (food logging)\n• 'remind me to [task]' (reminders)\n• 'todo [task]' (todos)\n• 'meeting with John tomorrow 2pm' (calendar)\n• 'save receipt' (image upload)"
 
 # Routes
+@app.route('/webhook/signalwire', methods=['POST'])
+def signalwire_webhook():
+    """Handle incoming SMS from SignalWire"""
+    try:
+        data = request.get_json()
+        
+        # Extract SMS data from SignalWire webhook
+        if data.get('type') == 'message':
+            from_number = data.get('from_number')
+            to_number = data.get('to_number')
+            message_body = data.get('body', '')
+            message_id = data.get('id')
+            
+            print(f"📱 SignalWire SMS received from {from_number}: {message_body}")
+            
+            # Process the message
+            processor = EnhancedMessageProcessor()
+            response_text = processor.process_message(message_body)
+            
+            # Send response back via SignalWire
+            if response_text:
+                result = communication_service.send_response(response_text, from_number)
+                
+                if result['success']:
+                    print(f"✅ Response sent via {result['method']}: {response_text}")
+                else:
+                    print(f"❌ Failed to send response: {result.get('error', 'Unknown error')}")
+            
+            return jsonify({'status': 'success', 'message_id': message_id}), 200
+        else:
+            return jsonify({'status': 'ignored', 'type': data.get('type')}), 200
+            
+    except Exception as e:
+        print(f"❌ Error processing SignalWire webhook: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 @app.route('/webhook/gmail', methods=['POST'])
 def gmail_webhook():
     """Handle incoming Gmail webhook (Google Voice SMS forwarded to Gmail)"""
@@ -861,11 +905,15 @@ def health_check():
         
         conn.close()
         
+        # Get communication service status
+        comm_status = communication_service.get_status()
+        
         return jsonify({
             "status": "healthy", 
             "timestamp": datetime.now().isoformat(),
             "service": "Alfred the Butler (Local)",
             "environment": "development",
+            "communication": comm_status,
             "database_stats": {
                 "food_logs": food_count,
                 "water_logs": water_count,
@@ -876,6 +924,7 @@ def health_check():
             "scheduled_jobs": [
                 "Gmail SMS Polling (every 5s)",
                 f"Morning Check-in ({config.MORNING_CHECKIN_HOUR}:00 AM)",
+                "Reminder Checker (every 1m)",
                 "Daily Database Dump (5:00 AM)"
             ]
         })
@@ -1145,30 +1194,21 @@ scheduler.add_job(
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    print("🚀 Initializing Alfred the Butler...")
-    print("Features: Google Voice + Gmail, Drive, Calendar, Enhanced NLP, Push Notifications")
-    
-    # Check for single instance
+    # Check if another instance is already running
     if not check_single_instance():
         exit(1)
-
-    # Initialize database
-    init_db()
-    print("Database initialized.")
+    
+    # Get port from environment (for cloud deployment) or use default
+    port = int(os.getenv('PORT', 5001))
+    host = '0.0.0.0' if os.getenv('RENDER') else 'localhost'
+    
+    print(f"🚀 Starting Alfred the Butler on {host}:{port}")
+    print(f"🌐 Health check: http://{host}:{port}/health")
+    print(f"📱 SignalWire webhook: http://{host}:{port}/webhook/signalwire")
     
     # Start the scheduler
     scheduler.start()
-    print(f"Morning check-in scheduled for {config.MORNING_CHECKIN_HOUR}:00 AM")
-    print(f"📱 Gmail SMS polling: Every 5 seconds")
-    print(f"📱 Responses via: Push Notifications")
-    print(f"Gmail webhook endpoint: /webhook/gmail")
-    print(f"Legacy SMS endpoint: /webhook/sms")
+    print("⏰ Background scheduler started")
     
-    # Local development port
-    port = 5001
-    print(f"Starting Flask app on port {port}...")
-    
-    # Register cleanup function
-    atexit.register(lambda: scheduler.shutdown())
-    
-    app.run(host='localhost', port=port, debug=False)
+    # Start the Flask app
+    app.run(host=host, port=port, debug=False)

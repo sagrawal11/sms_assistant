@@ -1,207 +1,119 @@
-# 🚀 Cloud Deployment Guide for Alfred the Butler
+# 🚀 Deploy Alfred the Butler to Render
 
-## **☁️ Why Deploy to the Cloud?**
+## **🎯 What We're Deploying:**
 
-- **24/7 Availability**: Alfred never sleeps
-- **No Local Computer**: Works from anywhere
-- **Automatic Gmail Polling**: Always checking for your messages
-- **Push Notifications**: Instant responses to your phone
+- **Flask App**: Alfred the Butler backend
+- **SignalWire Integration**: SMS handling
+- **Google Services**: Calendar, Drive, Gmail
+- **NLP Processing**: Hugging Face Transformers
+- **Database**: SQLite with CSV export
 
-## **🎯 Recommended: Render (Free Tier)**
+## **🌐 Render Setup Steps:**
 
-### **Why Render?**
-- ✅ **Free**: 750 hours/month (covers full month)
-- ✅ **Easy**: Git-based deployment
-- ✅ **Reliable**: Good uptime for personal projects
-- ✅ **Perfect**: For low message volume (10-20/day)
+### **Step 1: Create Render Account**
+1. Go to [render.com](https://render.com)
+2. Click "Get Started" → Sign up with GitHub
+3. Verify your email
 
-### **Limitations**
-- ⚠️ **Sleeps**: After 15 minutes of inactivity
-- ⚠️ **Wake Time**: 1-2 minutes to respond after sleeping
-- ⚠️ **Free Tier**: Limited to 750 hours/month
+### **Step 2: Connect GitHub Repository**
+1. **Dashboard**: Click "New +" → "Web Service"
+2. **Connect**: Your GitHub repository
+3. **Repository**: Select `personal_sms_assistant`
 
-## **📋 Pre-Deployment Checklist**
+### **Step 3: Configure Web Service**
+1. **Name**: `alfred-the-butler`
+2. **Environment**: `Python 3`
+3. **Build Command**: `pip install -r requirements.txt`
+4. **Start Command**: `cd src && python app.py`
+5. **Plan**: Free (750 hours/month)
 
-### **1. Environment Variables**
-Make sure you have these in your `.env` file:
+### **Step 4: Set Environment Variables**
+Click "Environment" tab and add:
+
 ```bash
 # Google API
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-GMAIL_WEBHOOK_SECRET=your_webhook_secret
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GMAIL_WEBHOOK_SECRET=your_gmail_webhook_secret
 
-# Pushover
-PUSHOVER_EMAIL_ALIAS=your_email@pomail.net
+# SignalWire
+SIGNALWIRE_PROJECT_ID=your_project_id
+SIGNALWIRE_AUTH_TOKEN=your_auth_token
+SIGNALWIRE_SPACE_URL=https://the-butler.signalwire.com
+SIGNALWIRE_PHONE_NUMBER=+13092885370
+
+# Communication
+COMMUNICATION_MODE=hybrid
+PUSHOVER_EMAIL_ALIAS=your_pushover_email
 
 # App Settings
 MORNING_CHECKIN_HOUR=8
 GMAIL_POLLING_INTERVAL=5
 ```
 
-### **2. Google Cloud Console**
-- ✅ OAuth consent screen configured
-- ✅ Your email added as test user
-- ✅ Gmail API enabled
-- ✅ Google Drive API enabled
-- ✅ Google Calendar API enabled
-
-### **3. Pushover Account**
-- ✅ Account created
-- ✅ Email alias configured
-- ✅ Test notification sent
-
-## **🚀 Deploy to Render**
-
-### **Step 1: Create Render Account**
-1. Go to [render.com](https://render.com)
-2. Sign up with GitHub
-3. Verify your email
-
-### **Step 2: Connect Your Repository**
-1. Click "New +"
-2. Select "Web Service"
-3. Connect your GitHub repository
-4. Select the `personal_sms_assistant` repository
-
-### **Step 3: Configure the Service**
-```
-Name: alfred-the-butler
-Environment: Python 3
-Build Command: pip install -r config/requirements.txt
-Start Command: cd src && python app.py
-```
-
-### **Step 4: Add Environment Variables**
-In Render dashboard, add these environment variables:
-```
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-GMAIL_WEBHOOK_SECRET=your_webhook_secret
-PUSHOVER_EMAIL_ALIAS=your_email@pomail.net
-MORNING_CHECKIN_HOUR=8
-GMAIL_POLLING_INTERVAL=5
-```
-
 ### **Step 5: Deploy**
-1. Click "Create Web Service"
-2. Wait for build to complete
-3. Your app will be available at: `https://alfred-the-butler.onrender.com`
+1. **Click**: "Create Web Service"
+2. **Wait**: Build completes (5-10 minutes)
+3. **Get URL**: Your app will be at `https://alfred-the-butler.onrender.com`
 
-## **🔧 Alternative: Railway**
+## **🔧 Update SignalWire Webhook:**
 
-### **Why Railway?**
-- ✅ **Free**: 500 hours/month
-- ✅ **Fast**: Quick deployments
-- ✅ **Good**: For development and testing
+1. **SignalWire Dashboard**: Go to phone number settings
+2. **Webhook URL**: Update to your Render URL
+   - **Old**: `https://the-butler.com/webhook/signalwire`
+   - **New**: `https://alfred-the-butler.onrender.com/webhook/signalwire`
+3. **Save**: Configuration
 
-### **Deployment Steps**
-1. Go to [railway.app](https://railway.app)
-2. Connect GitHub repository
-3. Deploy automatically
-4. Add environment variables
+## **🧪 Test Your Deployment:**
 
-## **📱 Testing Your Deployed App**
-
-### **1. Check App Status**
-- Visit your app URL
-- Should see "Alfred the Butler is running"
-
-### **2. Test Gmail Integration**
-- Send SMS to Google Voice
-- Check if you get push notification
-- Look at Render logs for any errors
-
-### **3. Test Calendar Integration**
-- Send: "Lunch with Ben tomorrow at 2pm"
-- Check if event appears in Google Calendar
-
-## **🔄 Keeping Your App Awake**
-
-### **Render Free Tier Sleep Issue**
-Since Render sleeps after 15 minutes, your app won't poll Gmail continuously.
-
-### **Solutions:**
-
-#### **Option 1: Accept Sleep (Recommended)**
-- **Pros**: Free, simple
-- **Cons**: 1-2 minute delay after sleeping
-- **Best for**: Personal use, low message volume
-
-#### **Option 2: Upgrade to Paid Plan**
-- **Cost**: $7/month
-- **Pros**: Always awake, instant responses
-- **Cons**: Monthly cost
-
-#### **Option 3: Use External Ping Service**
-- **Services**: UptimeRobot, Pingdom
-- **How**: Ping your app every 10 minutes
-- **Cost**: Free tier available
-- **Setup**: Add ping URL to keep app awake
-
-## **📊 Monitoring Your App**
-
-### **Render Dashboard**
-- **Logs**: View real-time application logs
-- **Metrics**: CPU, memory usage
-- **Deployments**: Automatic from Git pushes
-
-### **Health Check Endpoint**
-Your app includes a health check at `/health`:
-```
-GET https://alfred-the-butler.onrender.com/health
-Response: {"status": "healthy", "timestamp": "..."}
+### **1. Health Check:**
+```bash
+curl https://alfred-the-butler.onrender.com/health
 ```
 
-## **🔄 Updating Your App**
+### **2. Test SMS:**
+1. **Text your number**: `+13092885370`
+2. **Message**: "Hello Alfred"
+3. **Expected**: Response from Alfred via SMS
 
-### **Automatic Updates**
-1. Push changes to GitHub
-2. Render automatically redeploys
-3. No manual intervention needed
+## **📊 Monitoring:**
 
-### **Manual Updates**
-1. Go to Render dashboard
-2. Click "Manual Deploy"
-3. Select branch/commit
+- **Logs**: View in Render dashboard
+- **Health**: `/health` endpoint
+- **Uptime**: Render monitors automatically
+- **Scaling**: Auto-scales based on traffic
 
-## **🚨 Troubleshooting**
+## **💰 Cost:**
 
-### **Common Issues**
+- **Free Tier**: 750 hours/month (covers full month)
+- **Your Usage**: ~10-20 messages/day = very low traffic
+- **Total Cost**: $0/month! 🎉
 
-#### **1. App Won't Start**
+## **🚨 Troubleshooting:**
+
+### **Build Fails:**
+- Check requirements.txt
+- Verify Python version (3.12)
+- Check build logs
+
+### **App Won't Start:**
 - Check environment variables
-- Verify requirements.txt
-- Check Render logs
+- Verify start command
+- Check app logs
 
-#### **2. Gmail Authentication Fails**
-- Verify OAuth consent screen
-- Check client ID/secret
-- Ensure your email is added as test user
+### **SMS Not Working:**
+- Verify webhook URL in SignalWire
+- Check app logs for errors
+- Test webhook endpoint manually
 
-#### **3. Push Notifications Not Working**
-- Verify Pushover email alias
-- Check email format
-- Test with simple message
+## **🎉 Success Indicators:**
 
-#### **4. Database Errors**
-- Check if database file is writable
-- Verify file paths in cloud environment
-
-### **Getting Help**
-- **Render Logs**: Check application logs
-- **GitHub Issues**: Create issue in repository
-- **Environment Variables**: Double-check all values
-
-## **🎉 Success!**
-
-Once deployed, Alfred the Butler will:
-- ✅ **Run 24/7** (with sleep limitations on free tier)
-- ✅ **Poll Gmail** every 5 seconds when awake
-- ✅ **Send Push Notifications** instantly
-- ✅ **Log Food, Water, Gym** automatically
-- ✅ **Manage Calendar** events
-- ✅ **Set Reminders** and todos
+✅ **App deploys** without errors
+✅ **Health endpoint** responds
+✅ **SignalWire webhook** receives messages
+✅ **SMS responses** sent back
+✅ **Google services** working
 
 ---
 
-**🚀 Ready to deploy? Follow the steps above and Alfred will be available worldwide!**
+**Need help? Check Render logs or create an issue in the repository!**

@@ -1,63 +1,68 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 class Config:
-    # Pushover settings for push notifications
-    PUSHOVER_EMAIL_ALIAS = os.environ.get('PUSHOVER_EMAIL_ALIAS')
-    YOUR_PHONE_NUMBER = os.environ.get('YOUR_PHONE_NUMBER')  # Keep for reference
+    # Google API Configuration
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+    GMAIL_WEBHOOK_SECRET = os.getenv('GMAIL_WEBHOOK_SECRET')
+    GOOGLE_CREDENTIALS_FILE = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'config',
+        'client_secrets.json'
+    )
     
-    # Google APIs
-    GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
-    GOOGLE_CREDENTIALS_FILE = os.environ.get('GOOGLE_CREDENTIALS_FILE', 'credentials.json')
+    # Pushover Configuration (fallback)
+    PUSHOVER_EMAIL_ALIAS = os.getenv('PUSHOVER_EMAIL_ALIAS')
     
-    # Gmail webhook settings
-    GMAIL_WEBHOOK_SECRET = os.environ.get('GMAIL_WEBHOOK_SECRET')
+    # SignalWire Configuration (primary SMS)
+    SIGNALWIRE_PROJECT_ID = os.getenv('SIGNALWIRE_PROJECT_ID')
+    SIGNALWIRE_AUTH_TOKEN = os.getenv('SIGNALWIRE_AUTH_TOKEN')
+    SIGNALWIRE_SPACE_URL = os.getenv('SIGNALWIRE_SPACE_URL', 'https://your-space.signalwire.com')
+    SIGNALWIRE_PHONE_NUMBER = os.getenv('SIGNALWIRE_PHONE_NUMBER')
     
-    # Google Drive folder IDs for organization
-    DRIVE_FOLDERS = {
-        'receipts': os.environ.get('DRIVE_RECEIPTS_FOLDER_ID'),
-        'documents': os.environ.get('DRIVE_DOCUMENTS_FOLDER_ID'),
-        'photos': os.environ.get('DRIVE_PHOTOS_FOLDER_ID'),
-        'work': os.environ.get('DRIVE_WORK_FOLDER_ID'),
-        'personal': os.environ.get('DRIVE_PERSONAL_FOLDER_ID')
-    }
+    # Communication Mode
+    COMMUNICATION_MODE = os.getenv('COMMUNICATION_MODE', 'hybrid')  # 'sms', 'push', 'hybrid'
+    
+    # App Settings
+    MORNING_CHECKIN_HOUR = int(os.getenv('MORNING_CHECKIN_HOUR', 8))
+    GMAIL_POLLING_INTERVAL = int(os.getenv('GMAIL_POLLING_INTERVAL', 5))
     
     # Database
-    DATABASE_PATH = os.environ.get('DATABASE_PATH', 'personal_assistant.db')
-    FOOD_DATABASE_PATH = os.environ.get('FOOD_DATABASE_PATH', 'food_database.json')
-    
-    # Scheduling
-    MORNING_CHECKIN_HOUR = int(os.environ.get('MORNING_CHECKIN_HOUR', 8))
-    EVENING_REMINDER_HOUR = int(os.environ.get('EVENING_REMINDER_HOUR', 20))
-    DEFAULT_REMINDER_HOUR = int(os.environ.get('DEFAULT_REMINDER_HOUR', 19))
-    
-    # Personal defaults
-    DEFAULT_WATER_BOTTLE_ML = int(os.environ.get('DEFAULT_WATER_BOTTLE_ML', 710))  # 24oz
-    DEFAULT_LUNCH_TIME = int(os.environ.get('DEFAULT_LUNCH_TIME', 12))
-    DEFAULT_MEETING_DURATION = int(os.environ.get('DEFAULT_MEETING_DURATION', 60))  # minutes
-    
-    # Image processing
-    MAX_IMAGE_SIZE = int(os.environ.get('MAX_IMAGE_SIZE', 10 * 1024 * 1024))  # 10MB
-    SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    DATABASE_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'databases',
+        'personal_assistant.db'
+    )
     
     @classmethod
     def validate(cls):
-        """Validate that all required configuration is present"""
-        required_vars = [
-            'PUSHOVER_EMAIL_ALIAS',
+        """Validate required configuration"""
+        required_vars = []
+        
+        # Check communication mode requirements
+        if cls.COMMUNICATION_MODE in ['sms', 'hybrid']:
+            required_vars.extend([
+                'SIGNALWIRE_PROJECT_ID',
+                'SIGNALWIRE_AUTH_TOKEN',
+                'SIGNALWIRE_SPACE_URL',
+                'SIGNALWIRE_PHONE_NUMBER'
+            ])
+        
+        if cls.COMMUNICATION_MODE in ['push', 'hybrid']:
+            required_vars.append('PUSHOVER_EMAIL_ALIAS')
+        
+        # Always require Google API for Gmail integration
+        required_vars.extend([
             'GOOGLE_CLIENT_ID',
             'GOOGLE_CLIENT_SECRET',
             'GMAIL_WEBHOOK_SECRET'
-        ]
+        ])
         
-        missing_vars = []
-        for var in required_vars:
-            if not getattr(cls, var):
-                missing_vars.append(var)
+        missing_vars = [var for var in required_vars if not getattr(cls, var)]
         
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {missing_vars}")
