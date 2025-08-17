@@ -41,27 +41,47 @@ class GoogleServicesManager:
     
     def _authenticate(self):
         """Authenticate with Google APIs"""
-        if os.path.exists(self.config.GOOGLE_CREDENTIALS_FILE):
-            self.creds = Credentials.from_authorized_user_file(
-                self.config.GOOGLE_CREDENTIALS_FILE, SCOPES)
-        
-        # If no valid credentials available, let the user log in
-        if not self.creds or not self.creds.valid:
-            if self.creds and self.creds.expired and self.creds.refresh_token:
-                self.creds.refresh(Request())
+        try:
+            # Try to load existing credentials first
+            if os.path.exists(self.config.GOOGLE_CREDENTIALS_FILE):
+                self.creds = Credentials.from_authorized_user_file(
+                    self.config.GOOGLE_CREDENTIALS_FILE, SCOPES)
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'client_secrets.json', SCOPES)
-                self.creds = flow.run_local_server(port=0)
+                # Fallback to environment variables for cloud deployment
+                print("⚠️  Credentials file not found, using environment variables")
+                self.creds = None
             
-            # Save the credentials for the next run
-            with open(self.config.GOOGLE_CREDENTIALS_FILE, 'w') as token:
-                token.write(self.creds.to_json())
-        
-        # Build services
-        self.gmail_service = build('gmail', 'v1', credentials=self.creds)
-        self.drive_service = build('drive', 'v3', credentials=self.creds)
-        self.calendar_service = build('calendar', 'v3', credentials=self.creds)
+            # If no valid credentials, try to get them from environment
+            if not self.creds or not self.creds.valid:
+                if self.creds and self.creds.expired and self.creds.refresh_token:
+                    self.creds.refresh(Request())
+                else:
+                    # Create credentials from environment variables
+                    if self.config.GOOGLE_CLIENT_ID and self.config.GOOGLE_CLIENT_SECRET:
+                        print("🔐 Creating credentials from environment variables")
+                        self.creds = Credentials.from_authorized_user_info({
+                            'client_id': self.config.GOOGLE_CLIENT_ID,
+                            'client_secret': self.config.GOOGLE_CLIENT_SECRET,
+                            'refresh_token': os.getenv('GOOGLE_REFRESH_TOKEN', ''),
+                            'token_uri': 'https://oauth2.googleapis.com/token'
+                        }, SCOPES)
+                    else:
+                        print("❌ No Google credentials available")
+                        self.creds = None
+                        return
+            
+            # Build the Gmail service
+            if self.creds:
+                self.gmail_service = build('gmail', 'v1', credentials=self.creds)
+                self.drive_service = build('drive', 'v3', credentials=self.creds)
+                self.calendar_service = build('calendar', 'v3', credentials=self.creds)
+                print("✅ Google services authenticated successfully")
+            else:
+                print("❌ Failed to authenticate Google services")
+                
+        except Exception as e:
+            print(f"❌ Google authentication failed: {e}")
+            self.creds = None
     
     # Old SMS methods removed - now using push notifications via email
     

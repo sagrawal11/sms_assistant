@@ -133,7 +133,13 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Initialize services
-google_services = GoogleServicesManager()
+try:
+    google_services = GoogleServicesManager()
+    print("✅ Google services initialized")
+except Exception as e:
+    print(f"⚠️  Google services failed to initialize: {e}")
+    google_services = None
+
 communication_service = CommunicationService()
 
 # Load configuration
