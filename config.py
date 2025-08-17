@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    # Google Voice (replaces Twilio)
-    GOOGLE_VOICE_NUMBER = os.environ.get('GOOGLE_VOICE_NUMBER')
-    YOUR_PHONE_NUMBER = os.environ.get('YOUR_PHONE_NUMBER')
+    # Pushover settings for push notifications
+    PUSHOVER_EMAIL_ALIAS = os.environ.get('PUSHOVER_EMAIL_ALIAS')
+    YOUR_PHONE_NUMBER = os.environ.get('YOUR_PHONE_NUMBER')  # Keep for reference
     
     # Google APIs
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
@@ -47,8 +47,7 @@ class Config:
     def validate(cls):
         """Validate that all required configuration is present"""
         required_vars = [
-            'GOOGLE_VOICE_NUMBER',
-            'YOUR_PHONE_NUMBER', 
+            'PUSHOVER_EMAIL_ALIAS',
             'GOOGLE_CLIENT_ID',
             'GOOGLE_CLIENT_SECRET',
             'GMAIL_WEBHOOK_SECRET'

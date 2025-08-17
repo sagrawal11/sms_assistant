@@ -1,5 +1,6 @@
 # Google Voice Configuration
-GOOGLE_VOICE_NUMBER=+1234567890
+# Google Voice number (for reference only - not used in code)
+# GOOGLE_VOICE_NUMBER=+1234567890
 YOUR_PHONE_NUMBER=+1234567890
 
 # Google Cloud API Credentials
@@ -7,9 +8,8 @@ GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 GOOGLE_CREDENTIALS_FILE=credentials.json
 
-# Google Voice Web Automation Credentials
-GOOGLE_EMAIL=your_gmail_address@gmail.com
-GOOGLE_PASSWORD=your_app_password_here
+# Pushover Email Alias for Push Notifications
+PUSHOVER_EMAIL_ALIAS=your_username@pomail.net
 
 # Gmail Webhook Security
 GMAIL_WEBHOOK_SECRET=your-secret-key-here

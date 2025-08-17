@@ -80,7 +80,7 @@ def test_configuration():
         
         # Show that variables are present (without revealing values)
         required_vars = [
-            'GOOGLE_VOICE_NUMBER',
+            'PUSHOVER_EMAIL_ALIAS',
             'YOUR_PHONE_NUMBER',
             'GOOGLE_CLIENT_ID',
             'GOOGLE_CLIENT_SECRET',
@@ -147,7 +147,7 @@ def main():
     if passed == total:
         print("\n🎉 All tests passed! Your system is ready to go.")
         print("Next steps:")
-        print("1. Run: python app_new.py")
+        print("1. Run: python app.py")
         print("2. Send a text to your Google Voice number")
         print("3. Test with: 'drank a bottle'")
     else:

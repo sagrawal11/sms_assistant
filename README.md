@@ -39,13 +39,13 @@ This enhanced version replaces Twilio with **Google Voice** and adds powerful ne
 ```
 Google Voice SMS → Gmail Forwarding → Webhook → Enhanced NLP → Google Services
                                                       ↓
-                                              Response via Google Voice
+                                              Response via Push Notifications
 ```
 
 - **Frontend**: Your phone's Messages app (natural SMS interface)
 - **Backend**: Flask + Enhanced NLP + Google APIs
 - **Storage**: SQLite + Google Drive + Google Calendar
-- **Communication**: Gmail webhooks + Google Voice
+- **Communication**: Gmail webhooks + Push Notifications
 
 ## 🚀 Quick Start
 
@@ -75,7 +75,7 @@ python app.py
 
 ### 3. First Use
 1. Send a text to your Google Voice number: "drank a bottle"
-2. Receive confirmation: "✅ Logged 24oz water (710ml)"
+2. Receive push notification: "✅ Logged 24oz water (710ml)"
 3. Check your database for logged data
 
 ## 📱 Usage Examples
@@ -123,9 +123,9 @@ Bot: 📅 Your schedule:
 
 ### Environment Variables
 ```bash
-# Google Voice
-GOOGLE_VOICE_NUMBER=+1234567890
-YOUR_PHONE_NUMBER=+1234567890
+# Pushover (for push notifications)
+PUSHOVER_APP_TOKEN=your_app_token
+PUSHOVER_USER_KEY=your_user_key
 
 # Google APIs  
 GOOGLE_CLIENT_ID=your_client_id

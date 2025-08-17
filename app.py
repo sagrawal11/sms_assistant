@@ -289,26 +289,36 @@ class EnhancedMessageProcessor:
         conn.close()
     
     def handle_gym(self, message, entities):
-        """Handle gym logging using enhanced NLP processor"""
-        muscle_groups = self.nlp_processor.extract_muscle_groups(message)
-        if muscle_groups:
-            gym_info = {
-                'muscle_groups': ', '.join(muscle_groups),
-                'exercises': message,  # Store full message for now
-                'date': datetime.now().date()
-            }
-            self.log_gym(gym_info)
-            return f"✅ Logged workout: {', '.join(muscle_groups)}"
+        """Handle gym workout logging using enhanced NLP processor"""
+        workout_data = self.nlp_processor.parse_gym_workout(message)
+        if workout_data:
+            self.log_gym_workout(workout_data)
+            
+            # Build response message
+            exercises = workout_data['exercises']
+            exercise_details = []
+            for ex in exercises:
+                if ex['reps']:
+                    detail = f"{ex['name']} {ex['weight']}x{ex['reps']}"
+                    if ex['sets'] > 1:
+                        detail += f"x{ex['sets']}"
+                else:
+                    detail = f"{ex['name']} {ex['weight']}"
+                exercise_details.append(detail)
+            
+            response = f"💪 Logged {workout_data['muscle_group']} workout: {', '.join(exercise_details)}"
+            return response
+        
         return None
     
-    def log_gym(self, gym_info):
-        """Log gym workout"""
+    def log_gym_workout(self, workout_data):
+        """Log gym workout to database"""
         conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO gym_logs (date, muscle_groups, exercises)
             VALUES (?, ?, ?)
-        ''', (gym_info['date'], gym_info['muscle_groups'], gym_info['exercises']))
+        ''', (datetime.now().date(), workout_data['muscle_group'], json.dumps(workout_data['exercises'])))
         conn.commit()
         conn.close()
     
@@ -331,86 +341,77 @@ class EnhancedMessageProcessor:
     
     def handle_reminder(self, message, entities):
         """Handle reminder creation using enhanced NLP processor"""
-        tasks = entities.get('tasks', [])
-        if tasks or 'remind me' in message:
-            reminder_time = self.nlp_processor.parse_time_reference(message)
-            text = tasks[0] if tasks else message.split('remind me')[-1].strip('to ')
+        reminder_data = self.nlp_processor.parse_reminder(message)
+        if reminder_data:
+            self.schedule_reminder(reminder_data)
             
-            reminder_info = {
-                'text': text,
-                'time': reminder_time
-            }
-            self.add_reminder(reminder_info)
-            return f"✅ Reminder set: {text} at {reminder_time.strftime('%m/%d %I:%M%p')}"
+            time_str = reminder_data['scheduled_time'].strftime("%I:%M %p")
+            date_str = reminder_data['scheduled_time'].strftime("%B %d")
+            
+            response = f"⏰ Reminder set: {reminder_data['text']} on {date_str} at {time_str}"
+            if reminder_data['priority'] == 'high':
+                response += " (URGENT)"
+            return response
+        
         return None
     
-    def add_reminder(self, reminder_info):
-        """Add reminder to database"""
+    def schedule_reminder(self, reminder_data):
+        """Schedule reminder to database"""
         conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO reminders (text, scheduled_time)
             VALUES (?, ?)
-        ''', (reminder_info['text'], reminder_info['time']))
+        ''', (reminder_data['text'], reminder_data['scheduled_time']))
         conn.commit()
         conn.close()
     
     def handle_calendar(self, message, entities):
-        """Handle calendar event creation"""
-        event_info = self.nlp_processor.parse_calendar_event(message, entities)
-        if event_info:
-            # Create Google Calendar event
-            event_id = self.google_services.create_calendar_event(
-                summary=event_info['summary'],
-                start_time=event_info['start_time'],
-                end_time=event_info['end_time'],
-                description=event_info['description'],
-                location=event_info['location']
+        """Handle calendar event creation using enhanced NLP processor"""
+        event_data = self.nlp_processor.parse_calendar_event(message)
+        if event_data:
+            # Create calendar event via Google services
+            success = self.google_services.create_calendar_event(
+                title=event_data['title'],
+                start_time=event_data['start_time'],
+                end_time=event_data['end_time'],
+                description=event_data['description'],
+                location=event_data['location']
             )
             
-            if event_id:
-                # Cache event in database
-                self.cache_calendar_event(event_id, event_info)
-                return f"✅ Calendar event created: {event_info['summary']} on {event_info['start_time'].strftime('%m/%d at %I:%M%p')}"
+            if success:
+                start_time_str = event_data['start_time'].strftime("%I:%M %p")
+                end_time_str = event_data['end_time'].strftime("%I:%M %p")
+                response = f"📅 Event created: {event_data['title']} from {start_time_str} to {end_time_str}"
+                if event_data['location']:
+                    response += f" at {event_data['location']}"
+                return response
             else:
                 return "❌ Failed to create calendar event"
         
-        return "📅 I couldn't understand the event details. Try: 'meeting with John tomorrow 2pm'"
+        return None
     
     def handle_schedule_check(self, message, entities):
-        """Handle schedule/calendar queries"""
-        # Extract date range
-        dates = entities.get('dates', [])
-        if dates:
-            start_date = datetime.now()
-            if dates[0]['type'] == 'relative':
-                if dates[0]['value'] == 'tomorrow':
-                    start_date = datetime.now() + timedelta(days=1)
-                elif dates[0]['value'] == 'next week':
-                    start_date = datetime.now() + timedelta(days=7)
+        """Handle schedule checking queries"""
+        schedule_query = self.nlp_processor.parse_schedule_query(message)
+        if schedule_query:
+            # Get schedule from Google Calendar
+            events = self.google_services.get_calendar_events(
+                date=schedule_query['date']
+            )
             
-            end_date = start_date + timedelta(days=1)
-        else:
-            start_date = datetime.now()
-            end_date = start_date + timedelta(days=1)
+            if events:
+                response = f"📅 Schedule for {schedule_query['date'].strftime('%B %d')}:\n"
+                for event in events[:5]:  # Show first 5 events
+                    time_str = event['start_time'].strftime("%I:%M %p")
+                    response += f"• {time_str}: {event['title']}\n"
+                if len(events) > 5:
+                    response += f"... and {len(events) - 5} more events"
+                return response
+            else:
+                return f"📅 No events scheduled for {schedule_query['date'].strftime('%B %d')}"
         
-        # Get events from Google Calendar
-        events = self.google_services.get_calendar_events(start_date, end_date)
-        
-        if events:
-            event_list = []
-            for event in events[:5]:  # Limit to 5 events
-                start_time = event['start']
-                if 'T' in start_time:  # Has time
-                    time_str = datetime.fromisoformat(start_time.replace('Z', '+00:00')).strftime('%I:%M%p')
-                else:  # All day
-                    time_str = 'All day'
-                
-                event_list.append(f"• {event['summary']} at {time_str}")
-            
-            return f"📅 Your schedule:\n" + "\n".join(event_list)
-        else:
-            return f"📅 No events scheduled for {start_date.strftime('%m/%d')}"
+        return None
     
     def handle_event_modification(self, message, entities):
         """Handle calendar event modifications"""
@@ -418,17 +419,30 @@ class EnhancedMessageProcessor:
         return "📅 Event modification coming soon! For now, you can create new events."
     
     def handle_image_upload(self, message, entities):
-        """Handle image upload requests"""
-        # Extract category from message
-        category = self.nlp_processor.extract_image_category(message)
+        """Handle photo upload requests"""
+        photo_data = self.nlp_processor.parse_photo_upload(message)
+        if photo_data:
+            # For now, acknowledge the request
+            # TODO: Implement actual photo upload when image is attached
+            response = f"📸 Photo upload request received for {photo_data['target_folder']} folder"
+            response += "\n💡 Note: Photo uploads will be implemented when you attach images"
+            return response
         
-        # This would typically handle MMS or email attachments
-        # For now, return instructions
-        return f"📸 To upload an image to {category} folder:\n1. Send the image via MMS\n2. Include '{category}' in your message\n3. I'll organize it automatically!"
+        return None
     
     def handle_drive_organization(self, message, entities):
-        """Handle Google Drive organization requests"""
-        return "📁 Drive organization features:\n• Send images to auto-organize\n• Use keywords: receipts, documents, work, personal\n• I'll create folders and organize automatically!"
+        """Handle drive organization requests"""
+        drive_data = self.nlp_processor.parse_drive_organization(message)
+        if drive_data:
+            response = f"📁 Drive organization request received"
+            if drive_data['file_type']:
+                response += f" for {drive_data['file_type']}"
+            if drive_data['target_folder']:
+                response += f" in {drive_data['target_folder']} folder"
+            response += "\n💡 Note: File organization will be implemented for attached files"
+            return response
+        
+        return None
     
     def cache_calendar_event(self, google_event_id, event_info):
         """Cache calendar event in database"""
@@ -511,10 +525,10 @@ def gmail_webhook():
         
         print(f"Response: {response_text}")
         
-        # Send response back via Google Voice
+        # Send response via push notification
         if response_text:
-            google_services.send_sms_via_gmail(
-                config.YOUR_PHONE_NUMBER, 
+            google_services.send_push_notification(
+                "Alfred the Butler", 
                 response_text
             )
         
@@ -559,25 +573,22 @@ def health_check():
 def debug_config():
     """Debug endpoint to check config values"""
     return jsonify({
-        "GOOGLE_VOICE_NUMBER": config.GOOGLE_VOICE_NUMBER,
+        "PUSHOVER_EMAIL_ALIAS": config.PUSHOVER_EMAIL_ALIAS,
         "YOUR_PHONE_NUMBER": config.YOUR_PHONE_NUMBER,
         "HAS_GOOGLE_CREDENTIALS": bool(config.GOOGLE_CLIENT_ID),
         "DRIVE_FOLDERS": config.DRIVE_FOLDERS
     })
 
-def send_sms(message):
-    """Send outbound SMS via Google Voice"""
+def send_push_notification(title, message):
+    """Send push notification to user's phone"""
     try:
-        success = google_services.send_sms_via_google_voice(
-            config.YOUR_PHONE_NUMBER, 
-            message
-        )
+        success = google_services.send_push_notification(title, message)
         if success:
-            print(f"📱 SMS response sent: {message}")
+            print(f"📱 Push notification sent: {title}")
         else:
-            print(f"❌ Failed to send SMS response: {message}")
+            print(f"❌ Failed to send push notification: {title}")
     except Exception as e:
-        print(f"Error sending SMS: {e}")
+        print(f"Error sending push notification: {e}")
 
 def morning_checkin():
     """Daily 8am check-in"""
@@ -653,7 +664,7 @@ def morning_checkin():
         # Always add water/outside reminder
         message_parts.append("💧 Don't forget: drink water & get outside!")
         
-        send_sms('\n'.join(message_parts))
+        send_push_notification("Morning Check-in", '\n'.join(message_parts))
         
     except Exception as e:
         print(f"Error in morning check-in: {e}")
@@ -676,8 +687,8 @@ def check_pending_reminders():
         pending_reminders = cursor.fetchall()
         
         for reminder_id, reminder_text in pending_reminders:
-            # Send reminder
-            send_sms(f"⏰ Reminder: {reminder_text}")
+            # Send reminder via push notification
+            send_push_notification("Reminder", f"⏰ {reminder_text}")
             
             # Mark as sent
             cursor.execute('''
@@ -757,16 +768,16 @@ def check_gmail_for_sms():
                         if response_text:
                             print(f"🤖 Generated response: {response_text}")
                             
-                            # Send response back via Google Voice
-                            success = google_services.send_sms_via_google_voice(
-                                config.YOUR_PHONE_NUMBER,
+                            # Send push notification instead of SMS
+                            success = google_services.send_push_notification(
+                                "Alfred the Butler",
                                 response_text
                             )
                             
                             if success:
-                                print(f"📤 Response sent successfully")
+                                print(f"📱 Push notification sent successfully")
                             else:
-                                print(f"❌ Failed to send response")
+                                print(f"❌ Failed to send push notification")
                         
                         # Mark as processed
                         cursor.execute('''
@@ -818,7 +829,7 @@ atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
     print("🚀 Initializing Enhanced Personal SMS Assistant...")
-    print("Features: Google Voice, Drive, Calendar, Enhanced NLP")
+    print("Features: Google Voice + Gmail, Drive, Calendar, Enhanced NLP, Push Notifications")
     
     init_db()
     print("Database initialized.")
@@ -827,6 +838,7 @@ if __name__ == '__main__':
     print(f"Starting Flask app on port {port}...")
     print(f"Morning check-in scheduled for {config.MORNING_CHECKIN_HOUR}:00 AM")
     print(f"📱 Gmail SMS polling: Every 5 seconds")
+    print(f"📱 Responses via: Push Notifications")
     print(f"Gmail webhook endpoint: /webhook/gmail")
     print(f"Legacy SMS endpoint: /webhook/sms")
     

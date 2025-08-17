@@ -44,7 +44,7 @@ nano .env  # or use your preferred editor
 ```
 
 **Required variables:**
-- `GOOGLE_VOICE_NUMBER` - Your Google Voice number
+- `PUSHOVER_EMAIL_ALIAS` - Your Pushover email alias (username@pomail.net)
 - `YOUR_PHONE_NUMBER` - Your personal phone number  
 - `GOOGLE_CLIENT_ID` - From Google Cloud Console
 - `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
@@ -92,7 +92,7 @@ python -m spacy download en_core_web_sm
 
 ### First Run Authentication
 ```bash
-python app_new.py
+python app.py
 ```
 - A browser window will open for Google OAuth
 - Grant permissions for Gmail, Drive, and Calendar

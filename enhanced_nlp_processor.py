@@ -3,6 +3,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
+import dateutil.parser
+from dateutil.relativedelta import relativedelta
 
 # Load spaCy model (free)
 try:
@@ -15,7 +17,7 @@ class EnhancedNLPProcessor:
     def __init__(self):
         self.food_db = {}  # Will be loaded from JSON
         
-        # Enhanced intent patterns
+        # Enhanced intent patterns with more sophisticated matching
         self.intent_patterns = {
             'water': [
                 r'\b(drank|drink|had|finished|bottle|water|oz|ml)\b',
@@ -27,7 +29,7 @@ class EnhancedNLPProcessor:
             ],
             'gym': [
                 r'\b(gym|workout|exercise|lift|hit|chest|back|legs|arms|shoulders)\b',
-                r'\b(bench|squat|deadlift|cardio|weights)\b'
+                r'\b(bench|squat|deadlift|cardio|weights|reps?|sets?)\b'
             ],
             'todo': [
                 r'\b(todo|task|add|remember|need to|don\'t forget)\b',
@@ -35,7 +37,7 @@ class EnhancedNLPProcessor:
             ],
             'reminder': [
                 r'\b(remind me|reminder|don\'t forget|schedule)\b',
-                r'\b(later|tomorrow|tonight|evening|morning)\b'
+                r'\b(later|tomorrow|tonight|evening|morning|call|text)\b'
             ],
             'completion': [
                 r'\b(did|done|finished|completed|called|went|bought)\b',
@@ -45,40 +47,58 @@ class EnhancedNLPProcessor:
                 r'\b(schedule|calendar|meeting|appointment|free|busy)\b',
                 r'\b(today|tomorrow|next week|what\'s next)\b'
             ],
+            'create_event': [
+                r'\b(block out|schedule|book|set up|create|add)\b',
+                r'\b(meeting|appointment|call|visit|lunch|dinner)\b'
+            ],
+            'check_schedule': [
+                r'\b(what\'s|what is|show|list|check|how)\b',
+                r'\b(schedule|calendar|today|tomorrow|this week|free|busy)\b'
+            ],
             'image': [
                 r'\b(save|upload|store|organize|photo|picture|image)\b',
-                r'\b(receipt|document|scan|backup)\b'
+                r'\b(receipt|document|scan|backup|add this)\b'
             ],
             'drive': [
                 r'\b(drive|folder|organize|file|document)\b',
-                r'\b(work|personal|receipts|photos)\b'
+                r'\b(work|personal|receipts|photos|to [a-z]+)\b'
             ]
         }
         
-        # Time expressions with spaCy
+        # Enhanced time expressions with more granular parsing
         self.time_patterns = {
-            'morning': 9,
-            'afternoon': 14,
-            'evening': 19,
-            'night': 20,
-            'lunch': 12,
-            'dinner': 18
+            'morning': {'start': 9, 'end': 12},
+            'afternoon': {'start': 12, 'end': 17},
+            'evening': {'start': 17, 'end': 21},
+            'night': {'start': 21, 'end': 23},
+            'lunch': {'start': 12, 'end': 13},
+            'dinner': {'start': 18, 'end': 20},
+            'breakfast': {'start': 7, 'end': 9}
         }
         
         # Calendar-specific patterns
         self.calendar_patterns = {
             'create_event': [
                 r'\b(meeting|appointment|call|visit|lunch|dinner)\b',
-                r'\b(with|to|at|from)\b'
+                r'\b(with|to|at|from|for)\b'
             ],
             'check_schedule': [
-                r'\b(what\'s|what is|show|list|check)\b',
+                r'\b(what\'s|what is|show|list|check|how)\b',
                 r'\b(schedule|calendar|today|tomorrow|this week)\b'
             ],
             'modify_event': [
                 r'\b(move|reschedule|change|update|edit)\b',
                 r'\b(meeting|appointment|event)\b'
             ]
+        }
+        
+        # Gym exercise patterns
+        self.gym_patterns = {
+            'chest': ['bench', 'incline', 'decline', 'fly', 'press', 'dumbbell'],
+            'back': ['pullup', 'row', 'deadlift', 'lat pulldown', 'shrug'],
+            'legs': ['squat', 'deadlift', 'leg press', 'lunge', 'calf raise'],
+            'arms': ['curl', 'tricep', 'bicep', 'hammer', 'skull crusher'],
+            'shoulders': ['press', 'lateral raise', 'rear delt', 'shrug']
         }
     
     def classify_intent(self, message: str) -> List[str]:
@@ -331,122 +351,101 @@ class EnhancedNLPProcessor:
         
         return durations
     
-    def parse_calendar_event(self, message: str, entities: Dict) -> Optional[Dict]:
-        """Parse calendar event from message"""
-        try:
-            # Extract event details
-            summary = self._extract_event_summary(message, entities)
-            start_time = self._extract_event_time(message, entities)
-            duration = self._extract_event_duration(message, entities)
-            location = self._extract_event_location(message, entities)
-            people = self._extract_event_people(message, entities)
-            
-            if not summary or not start_time:
-                return None
-            
-            # Calculate end time
-            if duration:
-                end_time = start_time + duration
-            else:
-                end_time = start_time + timedelta(hours=1)
-            
-            return {
-                'summary': summary,
-                'start_time': start_time,
-                'end_time': end_time,
-                'location': location,
-                'people': people,
-                'description': self._build_event_description(message, entities)
-            }
-            
-        except Exception as e:
-            print(f"Error parsing calendar event: {e}")
+    def parse_calendar_event(self, message: str) -> Optional[Dict]:
+        """Parse calendar event creation from message"""
+        entities = self.extract_entities(message)
+        
+        # Extract event details
+        event_time = self.parse_time_reference(message)
+        duration = self.parse_duration(message)
+        people = self._extract_event_people(message, entities)
+        location = self._extract_event_location(message, entities)
+        event_type = self._extract_event_type(message)
+        description = self._build_event_description(message, entities)
+        
+        if not event_time:
             return None
+        
+        # Default duration if not specified
+        if not duration:
+            duration = timedelta(hours=1)
+        
+        # Calculate end time
+        end_time = event_time + duration
+        
+        return {
+            'start_time': event_time,
+            'end_time': end_time,
+            'duration': duration,
+            'people': people,
+            'location': location,
+            'event_type': event_type,
+            'description': description,
+            'title': self._generate_event_title(message, people, event_type)
+        }
     
-    def _extract_event_summary(self, message: str, entities: Dict) -> Optional[str]:
-        """Extract event summary/title"""
-        # Look for meeting/appointment keywords
-        meeting_keywords = ['meeting', 'appointment', 'call', 'visit', 'lunch', 'dinner']
+    def _extract_event_type(self, message: str) -> str:
+        """Extract the type of event from message"""
         message_lower = message.lower()
         
-        for keyword in meeting_keywords:
-            if keyword in message_lower:
-                # Extract text around the keyword
-                start_idx = message_lower.find(keyword)
-                end_idx = start_idx + len(keyword)
-                
-                # Look for "with [person]" or "at [location]"
-                with_match = re.search(r'with\s+([^.!?]+)', message[start_idx:])
-                if with_match:
-                    return f"{keyword.title()} with {with_match.group(1).strip()}"
-                
-                # Look for person names
-                people = entities.get('people', [])
-                if people:
-                    person = people[0]['name']
-                    return f"{keyword.title()} with {person}"
-                
-                return keyword.title()
+        event_types = {
+            'meeting': ['meeting', 'mtg', 'sync'],
+            'call': ['call', 'phone', 'zoom', 'video'],
+            'appointment': ['appointment', 'apt', 'visit'],
+            'lunch': ['lunch', 'dinner', 'breakfast', 'meal'],
+            'workout': ['workout', 'gym', 'exercise', 'training'],
+            'social': ['coffee', 'drinks', 'hangout', 'get together']
+        }
         
-        return None
+        for event_type, keywords in event_types.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return event_type
+        
+        return 'event'
     
-    def _extract_event_time(self, message: str, entities: Dict) -> Optional[datetime]:
-        """Extract event start time"""
-        # Use existing time parsing
-        return self.parse_time_reference(message)
-    
-    def _extract_event_duration(self, message: str, entities: Dict) -> Optional[timedelta]:
-        """Extract event duration"""
-        durations = entities.get('durations', [])
-        if not durations:
-            return None
-        
-        duration = durations[0]
-        if duration['unit'] == 'hours':
-            return timedelta(hours=duration['value'])
-        elif duration['unit'] == 'minutes':
-            return timedelta(minutes=duration['value'])
-        elif duration['unit'] == 'days':
-            return timedelta(days=duration['value'])
-        
-        return None
-    
-    def _extract_event_location(self, message: str, entities: Dict) -> Optional[str]:
-        """Extract event location"""
-        locations = entities.get('locations', [])
-        if locations:
-            return locations[0]['name']
-        
-        # Look for "at [location]" pattern
-        at_match = re.search(r'at\s+([^.!?]+)', message.lower())
-        if at_match:
-            return at_match.group(1).strip()
-        
-        return None
-    
-    def _extract_event_people(self, message: str, entities: Dict) -> List[str]:
-        """Extract people involved in event"""
-        people = entities.get('people', [])
-        return [p['name'] for p in people]
-    
-    def _build_event_description(self, message: str, entities: Dict) -> str:
-        """Build event description from message and entities"""
-        description_parts = []
-        
-        # Add original message context
-        description_parts.append(f"Created from: {message}")
-        
-        # Add people
-        people = self._extract_event_people(message, entities)
+    def _generate_event_title(self, message: str, people: List[str], event_type: str) -> str:
+        """Generate a meaningful event title"""
         if people:
-            description_parts.append(f"People: {', '.join(people)}")
+            if event_type == 'meeting':
+                return f"Meeting with {', '.join(people)}"
+            elif event_type == 'call':
+                return f"Call with {', '.join(people)}"
+            elif event_type == 'lunch':
+                return f"Lunch with {', '.join(people)}"
+            else:
+                return f"{event_type.title()} with {', '.join(people)}"
+        else:
+            # Extract key words from message for title
+            words = message.split()
+            key_words = [word for word in words if len(word) > 3 and word.lower() not in ['with', 'for', 'the', 'and', 'but', 'this', 'that']]
+            if key_words:
+                return f"{event_type.title()}: {' '.join(key_words[:3])}"
+            else:
+                return f"{event_type.title()}"
+    
+    def parse_schedule_query(self, message: str) -> Optional[Dict]:
+        """Parse schedule checking queries"""
+        message_lower = message.lower()
         
-        # Add location
-        location = self._extract_event_location(message, entities)
-        if location:
-            description_parts.append(f"Location: {location}")
+        # Extract date/time to check
+        query_time = self.parse_time_reference(message)
+        if not query_time:
+            # Default to today if no specific time mentioned
+            query_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        return ' | '.join(description_parts)
+        # Determine query type
+        if any(word in message_lower for word in ['free', 'available', 'open']):
+            query_type = 'free_time'
+        elif any(word in message_lower for word in ['busy', 'booked', 'scheduled']):
+            query_type = 'busy_time'
+        else:
+            query_type = 'full_schedule'
+        
+        return {
+            'query_time': query_time,
+            'query_type': query_type,
+            'date': query_time.date()
+        }
     
     def parse_water_amount(self, message: str, entities: Dict) -> Optional[int]:
         """Parse water amount from message"""
@@ -489,6 +488,16 @@ class EnhancedNLPProcessor:
         message_lower = message.lower()
         now = datetime.now()
         
+        # Try to parse specific times first (e.g., "3pm", "2:30")
+        specific_time = self._parse_specific_time(message_lower)
+        if specific_time:
+            return specific_time
+        
+        # Try to parse specific dates (e.g., "August 13th", "next Thursday")
+        specific_date = self._parse_specific_date(message_lower)
+        if specific_date:
+            return specific_date
+        
         # Relative time patterns
         if 'tomorrow' in message_lower:
             if 'morning' in message_lower:
@@ -498,49 +507,187 @@ class EnhancedNLPProcessor:
             else:
                 return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0)
         
+        elif 'today' in message_lower:
+            if 'morning' in message_lower:
+                return now.replace(hour=9, minute=0, second=0)
+            elif 'evening' in message_lower:
+                return now.replace(hour=19, minute=0, second=0)
+            elif 'afternoon' in message_lower:
+                return now.replace(hour=14, minute=0, second=0)
+            else:
+                return now.replace(hour=9, minute=0, second=0)
+        
         elif 'tonight' in message_lower or 'this evening' in message_lower:
             return now.replace(hour=19, minute=0, second=0)
         
-        elif 'next week' in message_lower:
-            days_ahead = 6 - now.weekday()  # Next Sunday
-            return (now + timedelta(days=days_ahead)).replace(hour=9, minute=0, second=0)
+        elif 'this afternoon' in message_lower:
+            return now.replace(hour=14, minute=0, second=0)
         
-        elif 'monday' in message_lower:
-            days_ahead = (0 - now.weekday()) % 7
-            if days_ahead == 0:  # Today is Monday
-                days_ahead = 7  # Next Monday
-            return (now + timedelta(days=days_ahead)).replace(hour=9, minute=0, second=0)
+        elif 'this morning' in message_lower:
+            return now.replace(hour=9, minute=0, second=0)
         
         # Time of day patterns
-        for time_word, hour in self.time_patterns.items():
+        for time_word, hour_range in self.time_patterns.items():
             if time_word in message_lower:
-                target_time = now.replace(hour=hour, minute=0, second=0)
+                target_time = now.replace(hour=hour_range['start'], minute=0, second=0)
                 if target_time <= now:
                     target_time += timedelta(days=1)
                 return target_time
         
-        # Specific time patterns (3pm, 15:30, etc.)
-        time_match = re.search(r'\b(\d{1,2}):?(\d{2})?\s*(am|pm)?\b', message_lower)
-        if time_match:
-            hour = int(time_match.group(1))
-            minute = int(time_match.group(2) or 0)
-            ampm = time_match.group(3)
-            
-            if ampm == 'pm' and hour != 12:
-                hour += 12
-            elif ampm == 'am' and hour == 12:
-                hour = 0
-            elif not ampm and hour <= 12:
-                # Assume PM for reasonable hours
-                hour += 12 if hour < 8 else 0
-            
-            target_time = now.replace(hour=hour, minute=minute, second=0)
-            if target_time <= now:
-                target_time += timedelta(days=1)
-            return target_time
+        return None
+    
+    def _parse_specific_time(self, message: str) -> Optional[datetime]:
+        """Parse specific times like '3pm', '2:30', '14:00'"""
+        now = datetime.now()
         
-        # Default to evening if no specific time
-        return now.replace(hour=19, minute=0, second=0)
+        # Pattern: 3pm, 2:30pm, 14:00, etc.
+        time_patterns = [
+            r'(\d{1,2}):?(\d{2})?\s*(am|pm)?',  # 3pm, 2:30pm, 14:00
+            r'(\d{1,2})\s*(am|pm)',  # 3 pm
+            r'(\d{1,2})\s*oclock',  # 3 oclock
+        ]
+        
+        for pattern in time_patterns:
+            match = re.search(pattern, message)
+            if match:
+                hour = int(match.group(1))
+                minute = int(match.group(2)) if match.group(2) else 0
+                ampm = match.group(3) if match.group(3) else None
+                
+                # Handle AM/PM
+                if ampm:
+                    if ampm.lower() == 'pm' and hour != 12:
+                        hour += 12
+                    elif ampm.lower() == 'am' and hour == 12:
+                        hour = 0
+                elif hour > 12:  # 24-hour format
+                    pass
+                else:  # Assume PM for single digits without AM/PM
+                    hour += 12
+                
+                target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # If time has passed today, schedule for tomorrow
+                if target_time <= now:
+                    target_time += timedelta(days=1)
+                
+                return target_time
+        
+        return None
+    
+    def _parse_specific_date(self, message: str) -> Optional[datetime]:
+        """Parse specific dates like 'August 13th', 'next Thursday'"""
+        now = datetime.now()
+        
+        # Pattern: next Thursday, this Friday, etc.
+        day_pattern = r'(next|this)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)'
+        day_match = re.search(day_pattern, message.lower())
+        if day_match:
+            modifier = day_match.group(1)
+            day_name = day_match.group(2)
+            
+            # Map day names to numbers (0=Monday, 6=Sunday)
+            day_map = {
+                'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+                'friday': 4, 'saturday': 5, 'sunday': 6
+            }
+            
+            target_day = day_map[day_name]
+            current_day = now.weekday()
+            
+            if modifier == 'next':
+                days_ahead = (target_day - current_day) % 7
+                if days_ahead == 0:  # Same day, go to next week
+                    days_ahead = 7
+            else:  # 'this'
+                days_ahead = (target_day - current_day) % 7
+                if days_ahead == 0:  # Same day, use today
+                    days_ahead = 0
+            
+            target_date = now + timedelta(days=days_ahead)
+            return target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+        
+        # Pattern: August 13th, Aug 13, etc.
+        date_patterns = [
+            r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?',
+            r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?'
+        ]
+        
+        month_map = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+        }
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, message.lower())
+            if match:
+                month_name = match.group(1)
+                day = int(match.group(2))
+                
+                if month_name in month_map:
+                    month = month_map[month_name]
+                    year = now.year
+                    
+                    # If the date has passed this year, assume next year
+                    target_date = datetime(year, month, day)
+                    if target_date < now:
+                        target_date = datetime(year + 1, month, day)
+                    
+                    return target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+        
+        return None
+    
+    def parse_duration(self, message: str) -> Optional[timedelta]:
+        """Parse duration expressions like '1 hour', '30 minutes', '2-4pm'"""
+        message_lower = message.lower()
+        
+        # Pattern: 2-4pm, 3-5pm (time range)
+        time_range_pattern = r'(\d{1,2})-(\d{1,2})\s*(am|pm)?'
+        time_range_match = re.search(time_range_pattern, message_lower)
+        if time_range_match:
+            start_hour = int(time_range_match.group(1))
+            end_hour = int(time_range_match.group(2))
+            ampm = time_range_match.group(3)
+            
+            # Handle AM/PM
+            if ampm:
+                if ampm.lower() == 'pm' and start_hour != 12:
+                    start_hour += 12
+                    end_hour += 12
+                elif ampm.lower() == 'am' and start_hour == 12:
+                    start_hour = 0
+                    end_hour = 0
+            
+            # Calculate duration
+            if end_hour < start_hour:  # Crosses midnight
+                end_hour += 24
+            
+            duration_hours = end_hour - start_hour
+            return timedelta(hours=duration_hours)
+        
+        # Pattern: 1 hour, 30 minutes, etc.
+        duration_patterns = [
+            (r'(\d+)\s*hours?', 'hours'),
+            (r'(\d+)\s*hrs?', 'hours'),
+            (r'(\d+)\s*minutes?', 'minutes'),
+            (r'(\d+)\s*mins?', 'minutes'),
+            (r'(\d+)\s*days?', 'days')
+        ]
+        
+        for pattern, unit in duration_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                value = int(match.group(1))
+                if unit == 'hours':
+                    return timedelta(hours=value)
+                elif unit == 'minutes':
+                    return timedelta(minutes=value)
+                elif unit == 'days':
+                    return timedelta(days=value)
+        
+        return None
     
     def parse_portion_multiplier(self, message: str) -> float:
         """Parse portion multiplier from message"""
@@ -601,6 +748,247 @@ class EnhancedNLPProcessor:
         
         # Default to photos if no specific category
         return 'photos'
+
+    def parse_gym_workout(self, message: str) -> Optional[Dict]:
+        """Parse gym workout from message"""
+        message_lower = message.lower()
+        
+        # Extract muscle group
+        muscle_group = self._extract_muscle_group(message_lower)
+        if not muscle_group:
+            return None
+        
+        # Extract exercises with details
+        exercises = self._extract_exercises(message_lower)
+        if not exercises:
+            return None
+        
+        return {
+            'muscle_group': muscle_group,
+            'exercises': exercises,
+            'date': datetime.now().date(),
+            'total_exercises': len(exercises)
+        }
+    
+    def _extract_muscle_group(self, message: str) -> Optional[str]:
+        """Extract the muscle group being worked"""
+        for muscle, exercises in self.gym_patterns.items():
+            if muscle in message:
+                return muscle
+        
+        # Look for specific muscle group mentions
+        muscle_keywords = {
+            'chest': ['chest', 'pecs', 'pec'],
+            'back': ['back', 'lats', 'traps'],
+            'legs': ['legs', 'quads', 'hamstrings', 'calves'],
+            'arms': ['arms', 'biceps', 'triceps'],
+            'shoulders': ['shoulders', 'delts', 'deltoids'],
+            'core': ['core', 'abs', 'abs', 'stomach']
+        }
+        
+        for muscle, keywords in muscle_keywords.items():
+            if any(keyword in message for keyword in keywords):
+                return muscle
+        
+        return None
+    
+    def _extract_exercises(self, message: str) -> List[Dict]:
+        """Extract exercises with weights, reps, and sets"""
+        exercises = []
+        
+        # Pattern: exercise weight x reps (e.g., "bench 225x5", "squat 315x3")
+        exercise_pattern = r'(\w+)\s+(\d+)(?:x|×)(\d+)'
+        matches = re.finditer(exercise_pattern, message)
+        
+        for match in matches:
+            exercise_name = match.group(1)
+            weight = int(match.group(2))
+            reps = int(match.group(3))
+            
+            exercises.append({
+                'name': exercise_name,
+                'weight': weight,
+                'reps': reps,
+                'sets': 1  # Default to 1 set
+            })
+        
+        # Pattern: exercise weight x reps x sets (e.g., "bench 225x5x3")
+        exercise_pattern_sets = r'(\w+)\s+(\d+)(?:x|×)(\d+)(?:x|×)(\d+)'
+        matches_sets = re.finditer(exercise_pattern_sets, message)
+        
+        for match in matches_sets:
+            exercise_name = match.group(1)
+            weight = int(match.group(2))
+            reps = int(match.group(3))
+            sets = int(match.group(4))
+            
+            exercises.append({
+                'name': exercise_name,
+                'weight': weight,
+                'reps': reps,
+                'sets': sets
+            })
+        
+        # Pattern: exercise with just weight (e.g., "bench 225")
+        exercise_pattern_weight = r'(\w+)\s+(\d+)(?!\s*(?:x|×))'
+        matches_weight = re.finditer(exercise_pattern_weight, message)
+        
+        for match in matches_weight:
+            exercise_name = match.group(1)
+            weight = int(match.group(2))
+            
+            # Check if this exercise was already captured with reps
+            if not any(ex['name'] == exercise_name and ex['weight'] == weight for ex in exercises):
+                exercises.append({
+                    'name': exercise_name,
+                    'weight': weight,
+                    'reps': None,
+                    'sets': 1
+                })
+        
+        return exercises
+    
+    def parse_reminder(self, message: str) -> Optional[Dict]:
+        """Parse reminder creation from message"""
+        message_lower = message.lower()
+        
+        # Extract reminder text
+        reminder_text = self._extract_reminder_text(message)
+        if not reminder_text:
+            return None
+        
+        # Extract reminder time
+        reminder_time = self.parse_time_reference(message)
+        if not reminder_time:
+            return None
+        
+        # Extract priority
+        priority = self._extract_reminder_priority(message)
+        
+        return {
+            'text': reminder_text,
+            'scheduled_time': reminder_time,
+            'priority': priority,
+            'created_at': datetime.now()
+        }
+    
+    def _extract_reminder_text(self, message: str) -> Optional[str]:
+        """Extract the reminder text from message"""
+        # Look for reminder triggers
+        triggers = ['remind me to', 'reminder to', 'don\'t forget to', 'call', 'text', 'email']
+        
+        for trigger in triggers:
+            if trigger in message.lower():
+                # Extract text after the trigger
+                start_idx = message.lower().find(trigger) + len(trigger)
+                reminder_text = message[start_idx:].strip()
+                
+                # Clean up the reminder text
+                reminder_text = re.sub(r'\b(this evening|tonight|tomorrow|today)\b', '', reminder_text, flags=re.IGNORECASE)
+                reminder_text = reminder_text.strip()
+                
+                if reminder_text:
+                    return reminder_text
+        
+        return None
+    
+    def _extract_reminder_priority(self, message: str) -> str:
+        """Extract reminder priority from message"""
+        message_lower = message.lower()
+        
+        if any(word in message_lower for word in ['urgent', 'asap', 'important', 'critical']):
+            return 'high'
+        elif any(word in message_lower for word in ['soon', 'quick', 'fast']):
+            return 'medium'
+        else:
+            return 'low'
+
+    def parse_photo_upload(self, message: str) -> Optional[Dict]:
+        """Parse photo upload request from message"""
+        message_lower = message.lower()
+        
+        # Check if this is a photo upload request
+        photo_triggers = ['add this photo', 'save this photo', 'upload this photo', 'organize this photo']
+        if not any(trigger in message_lower for trigger in photo_triggers):
+            return None
+        
+        # Extract target folder
+        target_folder = self._extract_target_folder(message)
+        if not target_folder:
+            return None
+        
+        return {
+            'action': 'upload_photo',
+            'target_folder': target_folder,
+            'message': message
+        }
+    
+    def _extract_target_folder(self, message: str) -> Optional[str]:
+        """Extract the target folder from message"""
+        message_lower = message.lower()
+        
+        # Look for "to [folder]" pattern
+        to_pattern = r'to\s+(\w+)'
+        to_match = re.search(to_pattern, message_lower)
+        if to_match:
+            folder = to_match.group(1)
+            return folder
+        
+        # Look for "in [folder]" pattern
+        in_pattern = r'in\s+(\w+)'
+        in_match = re.search(in_pattern, message_lower)
+        if in_match:
+            folder = in_match.group(1)
+            return folder
+        
+        # Look for "folder" keyword
+        folder_pattern = r'(\w+)\s+folder'
+        folder_match = re.search(folder_pattern, message_lower)
+        if folder_match:
+            folder = folder_match.group(1)
+            return folder
+        
+        return None
+    
+    def parse_drive_organization(self, message: str) -> Optional[Dict]:
+        """Parse drive organization request from message"""
+        message_lower = message.lower()
+        
+        # Check if this is a drive organization request
+        drive_triggers = ['organize', 'organise', 'sort', 'file', 'backup', 'save']
+        if not any(trigger in message_lower for trigger in drive_triggers):
+            return None
+        
+        # Extract file type
+        file_type = self._extract_file_type(message)
+        
+        # Extract target folder
+        target_folder = self._extract_target_folder(message)
+        
+        return {
+            'action': 'organize_drive',
+            'file_type': file_type,
+            'target_folder': target_folder,
+            'message': message
+        }
+    
+    def _extract_file_type(self, message: str) -> Optional[str]:
+        """Extract the type of file being organized"""
+        message_lower = message.lower()
+        
+        file_types = {
+            'photos': ['photo', 'picture', 'image', 'pic'],
+            'documents': ['document', 'doc', 'pdf', 'file'],
+            'receipts': ['receipt', 'bill', 'invoice'],
+            'work': ['work', 'business', 'professional'],
+            'personal': ['personal', 'private', 'family']
+        }
+        
+        for file_type, keywords in file_types.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return file_type
+        
+        return None
 
 # Usage example
 def create_enhanced_processor(food_database: Dict) -> EnhancedNLPProcessor:
