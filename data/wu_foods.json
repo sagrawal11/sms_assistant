@@ -2,30 +2,30 @@
   "dining_hall": {
     "quesedilla": {
       "restaurant": "sazon",
-      "calories": 140,
-      "protein": 12,
-      "carbs": 2,
-      "fat": 10,
-      "fiber": 0,
-      "serving_size": "2 eggs",
-      "common_servings": ["1 egg", "2 eggs", "3 eggs"]
+      "calories": 1060,
+      "protein": 36,
+      "carbs": 116,
+      "fat": 47,
+      "fiber": 9,
+      "serving_size": "3 pieces",
+      "common_servings": ["1 piece", "2 pieces", "3 pieces"]
     },
     "burrito": {
       "restaurant": "sazon",
-      "calories": 150,
-      "protein": 5,
-      "carbs": 27,
-      "fat": 3,
-      "fiber": 4,
-      "serving_size": "1 cup cooked",
-      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+      "calories": 650,
+      "protein": 22,
+      "carbs": 77,
+      "fat": 25,
+      "fiber": 7,
+      "serving_size": "1 burrito",
+      "common_servings": ["1/2 burrito", "1 burrito", "full burrito"]
     },
     "bowl": {
       "restaurant": "sazon",
-      "calories": 600,
+      "calories": 660,
       "protein": 20,
-      "carbs": 80,
-      "fat": 25,
+      "carbs": 84,
+      "fat": 30,
       "fiber": 9,
       "serving_size": "1 bowl",
       "common_servings": ["1 bowl"]

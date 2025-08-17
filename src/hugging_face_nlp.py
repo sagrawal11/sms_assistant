@@ -717,8 +717,9 @@ class IntelligentNLPProcessor:
             return None
         
         return {
-            'text': reminder_text,
-            'scheduled_time': reminder_time,
+            'content': reminder_text,
+            'due_date': reminder_time,
+            'type': 'reminder',
             'created_at': datetime.now()
         }
     

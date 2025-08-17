@@ -3,10 +3,12 @@ import sys
 import json
 import atexit
 import sqlite3
+import csv
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 # Add src directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,6 +31,102 @@ def check_single_instance():
         print("   Please stop the other instance first")
         return False
 
+def daily_database_dump():
+    """Export all database data to CSV files and clean the database for the next day"""
+    try:
+        print("🔄 Starting daily database dump at 5 AM...")
+        
+        # Create data directory if it doesn't exist
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Get today's date for filename
+        today = datetime.now().strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # 1. Export food logs to CSV (append mode)
+        cursor.execute('SELECT * FROM food_logs WHERE DATE(timestamp) = ?', (yesterday,))
+        food_logs = cursor.fetchall()
+        
+        if food_logs:
+            food_csv_path = os.path.join(data_dir, 'food_logs.csv')
+            file_exists = os.path.exists(food_csv_path)
+            
+            with open(food_csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                # Only write headers if file is new
+                if not file_exists:
+                    writer.writerow(['id', 'timestamp', 'food_name', 'calories', 'protein', 'carbs', 'fat', 'restaurant', 'portion_multiplier'])
+                writer.writerows(food_logs)
+            print(f"📊 Appended {len(food_logs)} food logs to {food_csv_path}")
+        
+        # 2. Export water logs to CSV (append mode)
+        cursor.execute('SELECT * FROM water_logs WHERE DATE(timestamp) = ?', (yesterday,))
+        water_logs = cursor.fetchall()
+        
+        if water_logs:
+            water_csv_path = os.path.join(data_dir, 'water_logs.csv')
+            file_exists = os.path.exists(water_csv_path)
+            
+            with open(water_csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                # Only write headers if file is new
+                if not file_exists:
+                    writer.writerow(['id', 'timestamp', 'amount_ml', 'amount_oz'])
+                writer.writerows(water_logs)
+            print(f"💧 Appended {len(water_logs)} water logs to {water_csv_path}")
+        
+        # 3. Export gym logs to CSV (append mode)
+        cursor.execute('SELECT * FROM gym_logs WHERE DATE(timestamp) = ?', (yesterday,))
+        gym_logs = cursor.fetchall()
+        
+        if gym_logs:
+            gym_csv_path = os.path.join(data_dir, 'gym_logs.csv')
+            file_exists = os.path.exists(gym_csv_path)
+            
+            with open(gym_csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                # Only write headers if file is new
+                if not file_exists:
+                    writer.writerow(['id', 'timestamp', 'exercise', 'sets', 'reps', 'weight', 'notes'])
+                writer.writerows(gym_logs)
+            print(f"🏋️ Appended {len(gym_logs)} gym logs to {gym_csv_path}")
+        
+        # 4. Export reminders/todos to CSV (append mode)
+        cursor.execute('SELECT * FROM reminders_todos WHERE DATE(timestamp) = ?', (yesterday,))
+        reminder_logs = cursor.fetchall()
+        
+        if reminder_logs:
+            reminder_csv_path = os.path.join(data_dir, 'reminders_todos.csv')
+            file_exists = os.path.exists(reminder_csv_path)
+            
+            with open(reminder_csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                # Only write headers if file is new
+                if not file_exists:
+                    writer.writerow(['id', 'timestamp', 'type', 'content', 'due_date', 'completed', 'completed_at'])
+                writer.writerows(reminder_logs)
+            print(f"📝 Appended {len(reminder_logs)} reminders/todos to {reminder_csv_path}")
+        
+        # 5. Clean the database for the new day
+        cursor.execute('DELETE FROM food_logs WHERE DATE(timestamp) < ?', (today,))
+        cursor.execute('DELETE FROM water_logs WHERE DATE(timestamp) < ?', (today,))
+        cursor.execute('DELETE FROM gym_logs WHERE DATE(timestamp) < ?', (today,))
+        cursor.execute('DELETE FROM reminders_todos WHERE DATE(timestamp) < ?', (today,))
+        
+        # Keep calendar events cache (don't delete these)
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Daily database dump completed! Database cleaned for {today}")
+        
+    except Exception as e:
+        print(f"❌ Error during daily database dump: {e}")
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -47,6 +145,43 @@ except ValueError as e:
 
 # Initialize Google services
 google_services = GoogleServicesManager()
+
+def check_reminders():
+    """Check for due reminders and send push notifications"""
+    try:
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Get all due reminders that haven't been sent
+        current_time = datetime.now()
+        cursor.execute('''
+            SELECT id, content, due_date FROM reminders_todos 
+            WHERE type = 'reminder' 
+            AND completed = FALSE 
+            AND due_date <= ?
+        ''', (current_time,))
+        
+        due_reminders = cursor.fetchall()
+        
+        for reminder_id, content, due_date in due_reminders:
+            # Send push notification
+            message = f"⏰ REMINDER: {content}"
+            google_services.send_push_notification(message)
+            
+            # Mark as completed
+            cursor.execute('''
+                UPDATE reminders_todos 
+                SET completed = TRUE, completed_at = ? 
+                WHERE id = ?
+            ''', (current_time, reminder_id))
+            
+            print(f"🔔 Reminder sent: {content}")
+        
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        print(f"❌ Error checking reminders: {e}")
 
 # Initialize scheduler with better configuration
 scheduler = BackgroundScheduler(
@@ -75,6 +210,99 @@ scheduler.add_job(
     name='Morning Check-in',
     replace_existing=True
 )
+
+# Add reminder checker job (every minute)
+scheduler.add_job(
+    func=check_reminders,
+    trigger=IntervalTrigger(minutes=1),
+    id='check_reminders',
+    name='Reminder Checker',
+    replace_existing=True
+)
+
+# Add daily database dump job at 5 AM
+scheduler.add_job(
+    func=daily_database_dump,
+    trigger=CronTrigger(hour=5, minute=0),
+    id='daily_dump',
+    name='Daily Database Dump',
+    replace_existing=True
+)
+
+@app.route('/csv/<filename>')
+def view_csv(filename):
+    """View the contents of a CSV file"""
+    try:
+        # Validate filename to prevent directory traversal
+        allowed_files = ['food_logs.csv', 'water_logs.csv', 'gym_logs.csv', 'reminders_todos.csv']
+        if filename not in allowed_files:
+            return jsonify({'error': 'Invalid filename'}), 400
+        
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        csv_path = os.path.join(data_dir, filename)
+        
+        if not os.path.exists(csv_path):
+            return jsonify({'error': 'CSV file not found'}), 404
+        
+        # Read CSV and return as JSON
+        data = []
+        with open(csv_path, 'r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                data.append(row)
+        
+        return jsonify({
+            'filename': filename,
+            'row_count': len(data),
+            'data': data[:100],  # Limit to first 100 rows for performance
+            'total_rows': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error reading CSV: {str(e)}'}), 500
+
+@app.route('/csvs')
+def list_csvs():
+    """List all available CSV files with their sizes"""
+    try:
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        
+        if not os.path.exists(data_dir):
+            return jsonify({'csvs': []})
+        
+        csv_files = []
+        for filename in os.listdir(data_dir):
+            if filename.endswith('.csv'):
+                file_path = os.path.join(data_dir, filename)
+                file_size = os.path.getsize(file_path)
+                csv_files.append({
+                    'filename': filename,
+                    'size_bytes': file_size,
+                    'size_kb': round(file_size / 1024, 2)
+                })
+        
+        return jsonify({'csvs': csv_files})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error listing CSVs: {str(e)}'}), 500
+
+# Add manual dump endpoint
+@app.route('/dump', methods=['POST'])
+def manual_dump():
+    """Manual database dump endpoint"""
+    try:
+        daily_database_dump()
+        return jsonify({
+            'status': 'success',
+            'message': 'Database dumped successfully',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Dump failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 # Database initialization
 def init_db():
@@ -379,13 +607,15 @@ class EnhancedMessageProcessor:
         """Handle reminder creation using enhanced NLP processor"""
         reminder_data = self.nlp_processor.parse_reminder(message)
         if reminder_data:
+            # Store reminder in database
             self.schedule_reminder(reminder_data)
             
-            time_str = reminder_data['scheduled_time'].strftime("%I:%M %p")
-            date_str = reminder_data['scheduled_time'].strftime("%B %d")
+            # Format response
+            time_str = reminder_data['due_date'].strftime("%I:%M %p")
+            date_str = reminder_data['due_date'].strftime("%B %d")
             
-            response = f"⏰ Reminder set: {reminder_data['text']} on {date_str} at {time_str}"
-            if reminder_data['priority'] == 'high':
+            response = f"⏰ Reminder set: {reminder_data['content']} on {date_str} at {time_str}"
+            if reminder_data.get('priority') == 'high':
                 response += " (URGENT)"
             return response
         
@@ -396,9 +626,9 @@ class EnhancedMessageProcessor:
         conn = sqlite3.connect(config.DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO reminders (text, scheduled_time)
-            VALUES (?, ?)
-        ''', (reminder_data['text'], reminder_data['scheduled_time']))
+            INSERT INTO reminders_todos (type, content, due_date, completed)
+            VALUES (?, ?, ?, FALSE)
+        ''', ('reminder', reminder_data['content'], reminder_data['due_date']))
         conn.commit()
         conn.close()
     
@@ -528,9 +758,9 @@ class EnhancedMessageProcessor:
         ''')
         
         cursor.execute('''
-            UPDATE reminders SET completed_at = CURRENT_TIMESTAMP 
+            UPDATE reminders_todos SET completed_at = CURRENT_TIMESTAMP 
             WHERE completed_at IS NULL 
-            ORDER BY created_at DESC LIMIT 1
+            ORDER BY timestamp DESC LIMIT 1
         ''')
         
         conn.commit()
@@ -608,12 +838,53 @@ def sms_webhook():
 @app.route('/health')
 def health_check():
     """Health check endpoint for local testing"""
-    return jsonify({
-        "status": "healthy", 
-        "timestamp": datetime.now().isoformat(),
-        "service": "Alfred the Butler (Local)",
-        "environment": "development"
-    })
+    try:
+        # Get database stats
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Count records in each table
+        cursor.execute('SELECT COUNT(*) FROM food_logs')
+        food_count = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM water_logs')
+        water_count = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM gym_logs')
+        gym_count = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM reminders_todos')
+        reminder_count = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM calendar_events')
+        calendar_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "healthy", 
+            "timestamp": datetime.now().isoformat(),
+            "service": "Alfred the Butler (Local)",
+            "environment": "development",
+            "database_stats": {
+                "food_logs": food_count,
+                "water_logs": water_count,
+                "gym_logs": gym_count,
+                "reminders_todos": reminder_count,
+                "calendar_events": calendar_count
+            },
+            "scheduled_jobs": [
+                "Gmail SMS Polling (every 5s)",
+                f"Morning Check-in ({config.MORNING_CHECKIN_HOUR}:00 AM)",
+                "Daily Database Dump (5:00 AM)"
+            ]
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route('/debug', methods=['GET'])
 def debug_config():
@@ -653,10 +924,10 @@ def morning_checkin():
         # Get incomplete reminders from yesterday or earlier
         yesterday = datetime.now() - timedelta(days=1)
         cursor.execute('''
-            SELECT text FROM reminders 
+            SELECT text FROM reminders_todos 
             WHERE completed_at IS NULL 
-            AND scheduled_time <= ?
-            ORDER BY scheduled_time
+            AND due_date <= ?
+            ORDER BY due_date
         ''', (yesterday,))
         incomplete_reminders = cursor.fetchall()
         
