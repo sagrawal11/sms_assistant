@@ -77,7 +77,7 @@ class IntelligentNLPProcessor:
         """Fallback default intent examples if custom file not found"""
         return {
             "water_logging": ["drank water", "had water", "finished water bottle"],
-            "food_logging": ["ate breakfast", "had lunch", "dinner time"],
+            "food_logging": ["breakfast", "lunch", "dinner"],
             "gym_workout": ["hit the gym", "worked out", "lifted weights"],
             "calendar_event": ["meeting with", "appointment with", "lunch with"],
             "schedule_check": ["what's my schedule", "show my calendar"],
@@ -213,7 +213,28 @@ class IntelligentNLPProcessor:
                 return 'calendar_event'
             return 'calendar_event'
         
-        # Check for gym workouts (high priority)
+        # Check for food logging BEFORE gym workouts (higher priority for food)
+        food_patterns = [
+            r'breakfast:\s*', r'lunch:\s*', r'dinner:\s*', r'snack:\s*', r'meal:\s*',
+            r'ate\s+\w+', r'had\s+\w+', r'consumed\s+\w+', r'breakfast\s+', r'lunch\s+', r'dinner\s+',
+            r'ice\s+cream', r'chicken', r'beef', r'pork', r'fish', r'salmon', r'tuna',
+            r'rice', r'pasta', r'bread', r'toast', r'eggs', r'oatmeal', r'cereal',
+            r'apple', r'banana', r'orange', r'grapes', r'berries', r'vegetables',
+            r'broccoli', r'carrots', r'spinach', r'lettuce', r'tomato', r'onion',
+            r'potato', r'sweet\s+potato', r'corn', r'peas', r'beans', r'nuts',
+            r'almonds', r'walnuts', r'peanuts', r'protein\s+bar', r'shake', r'smoothie',
+            r'tub\s+of', r'piece\s+of', r'slice\s+of', r'bowl\s+of', r'plate\s+of'
+        ]
+        for pattern in food_patterns:
+            if re.search(pattern, message_lower):
+                return 'food_logging'
+        
+        # Check for water logging
+        water_keywords = ['water', 'drank', 'hydrated', 'bottle', 'glass', 'hydrate']
+        if any(keyword in message_lower for keyword in water_keywords):
+            return 'water_logging'
+        
+        # Check for gym workouts (lower priority than food)
         gym_keywords = ['workout', 'gym', 'exercise', 'hit', 'bench', 'squat', 'deadlift', 'reps', 'sets', 'chest', 'back', 'legs', 'arms', 'shoulders']
         if any(keyword in message_lower for keyword in gym_keywords):
             return 'gym_workout'
@@ -227,20 +248,6 @@ class IntelligentNLPProcessor:
         todo_keywords = ['todo', 'add to', 'need to', 'remember to', 'list']
         if any(keyword in message_lower for keyword in todo_keywords):
             return 'todo_add'
-        
-        # Check for food logging with better pattern matching
-        food_patterns = [
-            r'breakfast:\s*', r'lunch:\s*', r'dinner:\s*', r'snack:\s*', r'meal:\s*',
-            r'ate\s+\w+', r'had\s+\w+', r'consumed\s+\w+', r'breakfast\s+', r'lunch\s+', r'dinner\s+'
-        ]
-        for pattern in food_patterns:
-            if re.search(pattern, message_lower):
-                return 'food_logging'
-        
-        # Check for water logging
-        water_keywords = ['water', 'drank', 'hydrated', 'bottle', 'glass', 'hydrate']
-        if any(keyword in message_lower for keyword in water_keywords):
-            return 'water_logging'
         
         # Check for photo upload with better pattern matching
         photo_patterns = [
@@ -640,7 +647,7 @@ class IntelligentNLPProcessor:
                 return f"{event_type.title()}"
     
     def parse_reminder(self, message: str) -> Optional[Dict]:
-        """Parse reminder creation from message"""
+        """Parse reminder information from message"""
         clean_message = self.clean_message(message)
         entities = self.extract_entities(clean_message)
         
@@ -659,6 +666,255 @@ class IntelligentNLPProcessor:
             'scheduled_time': reminder_time,
             'created_at': datetime.now()
         }
+    
+    def parse_gym_workout(self, message: str) -> Optional[Dict]:
+        """Parse gym workout information from message"""
+        entities = self.extract_entities(message)
+        
+        # Extract exercises from entities
+        exercises = entities.get('exercises', [])
+        if not exercises:
+            # Try to extract exercises from the message
+            exercises = self._extract_exercises_from_text(message)
+        
+        # Extract date
+        date = None
+        if entities.get('dates'):
+            date_info = entities['dates'][0]
+            if date_info['type'] == 'relative':
+                date = datetime.now() + timedelta(days=date_info['days_offset'])
+            else:
+                date = date_info['value']
+        
+        return {
+            'date': date or datetime.now(),
+            'exercises': exercises,
+            'message': message
+        }
+    
+    def _extract_exercises_from_text(self, message: str) -> List[Dict]:
+        """Extract exercise information from text when entities don't have it"""
+        exercises = []
+        
+        # Look for common exercise patterns
+        exercise_patterns = [
+            r'(\w+)\s+(\d+)x(\d+)',  # bench 225x5
+            r'(\w+)\s+(\d+)\s*x\s*(\d+)',  # bench 225 x 5
+            r'(\w+)\s+(\d+)\s*reps?',  # bench 225 reps
+            r'(\w+)\s+(\d+)\s*for\s*(\d+)',  # bench 225 for 5
+        ]
+        
+        for pattern in exercise_patterns:
+            matches = re.finditer(pattern, message.lower())
+            for match in matches:
+                exercise_name = match.group(1)
+                weight = int(match.group(2))
+                reps = int(match.group(3))
+                
+                exercises.append({
+                    'name': exercise_name,
+                    'weight': weight,
+                    'reps': reps,
+                    'sets': 1
+                })
+        
+        return exercises
+    
+    def parse_food(self, message: str) -> Optional[Dict]:
+        """Parse food information from message"""
+        entities = self.extract_entities(message)
+        
+        # Extract food items
+        foods = entities.get('foods', [])
+        if not foods:
+            # Try to extract food from the message
+            foods = self._extract_food_from_text(message)
+        
+        # Extract quantities
+        quantities = entities.get('quantities', [])
+        
+        # Extract date
+        date = None
+        if entities.get('dates'):
+            date_info = entities['dates'][0]
+            if date_info['type'] == 'relative':
+                date = datetime.now() + timedelta(days=date_info['days_offset'])
+            else:
+                date = date_info['value']
+        
+        return {
+            'date': date or datetime.now(),
+            'foods': foods,
+            'quantities': quantities,
+            'message': message
+        }
+    
+    def _extract_food_from_text(self, message: str) -> List[str]:
+        """Extract food items from text when entities don't have them"""
+        # Common food keywords
+        food_keywords = [
+            'ice cream', 'chicken', 'beef', 'pork', 'fish', 'salmon', 'tuna',
+            'rice', 'pasta', 'bread', 'toast', 'eggs', 'oatmeal', 'cereal',
+            'apple', 'banana', 'orange', 'grapes', 'berries', 'vegetables',
+            'broccoli', 'carrots', 'spinach', 'lettuce', 'tomato', 'onion',
+            'potato', 'sweet potato', 'corn', 'peas', 'beans', 'nuts',
+            'almonds', 'walnuts', 'peanuts', 'protein bar', 'shake', 'smoothie'
+        ]
+        
+        found_foods = []
+        message_lower = message.lower()
+        
+        for food in food_keywords:
+            if food in message_lower:
+                found_foods.append(food)
+        
+        return found_foods
+    
+    def parse_water_amount(self, message: str, entities: Dict) -> Optional[float]:
+        """Parse water amount from message and entities"""
+        # Look for numbers in entities
+        numbers = entities.get('numbers', [])
+        if numbers:
+            # Convert to float and assume it's in oz
+            try:
+                amount_oz = float(numbers[0]['value'])
+                # Convert oz to ml (1 oz = 29.5735 ml)
+                return amount_oz * 29.5735
+            except (ValueError, IndexError):
+                pass
+        
+        # Look for common water amounts in text
+        message_lower = message.lower()
+        water_patterns = [
+            r'(\d+(?:\.\d+)?)\s*(?:oz|ounce|ounces)',
+            r'(\d+(?:\.\d+)?)\s*(?:ml|milliliter|milliliters)',
+            r'(\d+(?:\.\d+)?)\s*(?:cup|cups)',
+            r'(\d+(?:\.\d+)?)\s*(?:glass|glasses)',
+            r'(\d+(?:\.\d+)?)\s*(?:bottle|bottles)'
+        ]
+        
+        for pattern in water_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                amount = float(match.group(1))
+                # Convert to ml based on unit
+                if 'oz' in match.group(0) or 'ounce' in match.group(0):
+                    return amount * 29.5735
+                elif 'cup' in match.group(0):
+                    return amount * 236.588  # 1 cup = 236.588 ml
+                elif 'glass' in match.group(0):
+                    return amount * 236.588  # Assume 1 glass = 1 cup
+                elif 'bottle' in match.group(0):
+                    return amount * 500  # Assume 1 bottle = 500 ml
+                else:
+                    return amount  # Assume ml
+        
+        # Default amount if nothing found
+        return 500.0  # 500 ml default
+    
+    def parse_portion_multiplier(self, message: str) -> float:
+        """Parse portion multiplier from message"""
+        message_lower = message.lower()
+        
+        # Look for common portion indicators
+        portion_patterns = [
+            r'(\d+(?:\.\d+)?)\s*(?:serving|servings)',
+            r'(\d+(?:\.\d+)?)\s*(?:piece|pieces)',
+            r'(\d+(?:\.\d+)?)\s*(?:slice|slices)',
+            r'(\d+(?:\.\d+)?)\s*(?:bowl|bowls)',
+            r'(\d+(?:\.\d+)?)\s*(?:plate|plates)',
+            r'(\d+(?:\.\d+)?)\s*(?:cup|cups)',
+            r'(\d+(?:\.\d+)?)\s*(?:tablespoon|tablespoons|tbsp)',
+            r'(\d+(?:\.\d+)?)\s*(?:teaspoon|teaspoons|tsp)'
+        ]
+        
+        for pattern in portion_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                try:
+                    return float(match.group(1))
+                except ValueError:
+                    continue
+        
+        # Look for fractions
+        fraction_patterns = [
+            r'(\d+)/(\d+)',  # 1/2, 3/4, etc.
+            r'(\d+)\s*&\s*(\d+)/(\d+)',  # 1 & 1/2
+        ]
+        
+        for pattern in fraction_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                try:
+                    if len(match.groups()) == 2:
+                        # Simple fraction like 1/2
+                        numerator = float(match.group(1))
+                        denominator = float(match.group(2))
+                        return numerator / denominator
+                    elif len(match.groups()) == 3:
+                        # Mixed fraction like 1 & 1/2
+                        whole = float(match.group(1))
+                        numerator = float(match.group(2))
+                        denominator = float(match.group(3))
+                        return whole + (numerator / denominator)
+                except ValueError:
+                    continue
+        
+        # Default multiplier
+        return 1.0
+    
+    def parse_schedule_query(self, message: str) -> Optional[Dict]:
+        """Parse schedule query from message"""
+        entities = self.extract_entities(message)
+        
+        # Extract date
+        date = None
+        if entities.get('dates'):
+            date_info = entities['dates'][0]
+            if date_info['type'] == 'relative':
+                date = datetime.now() + timedelta(days=date_info['days_offset'])
+            else:
+                date = date_info['value']
+        
+        return {
+            'date': date or datetime.now(),
+            'message': message
+        }
+    
+    def parse_photo_upload(self, message: str) -> Optional[Dict]:
+        """Parse photo upload information from message"""
+        entities = self.extract_entities(message)
+        
+        # Extract folder/destination
+        locations = entities.get('locations', [])
+        folder = None
+        if locations:
+            folder = locations[0]
+        
+        # Look for folder patterns in text
+        if not folder:
+            folder_patterns = [
+                r'(?:to|in|into)\s+(\w+\s+folder)',
+                r'(?:to|in|into)\s+(\w+\s+album)',
+                r'(?:to|in|into)\s+(\w+\s+drive)',
+                r'(?:to|in|into)\s+(\w+)',  # Generic destination
+            ]
+            
+            for pattern in folder_patterns:
+                match = re.search(pattern, message.lower())
+                if match:
+                    folder = match.group(1)
+                    break
+        
+        return {
+            'folder': folder or 'general',
+            'message': message
+        }
+    
+    def parse_drive_organization(self, message: str) -> Optional[Dict]:
+        """Parse drive organization information from message"""
+        # This is similar to photo upload
+        return self.parse_photo_upload(message)
     
     def _extract_reminder_text(self, message: str) -> Optional[str]:
         """Extract reminder text"""
