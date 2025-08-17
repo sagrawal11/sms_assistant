@@ -1,0 +1,26 @@
+{
+    "sazon_tofrizo_quesadilla": {
+      "display_name": "Sazon Tofrizo Quesadilla",
+      "calories": 450,
+      "protein": 18,
+      "carbs": 35,
+      "fat": 28,
+      "aliases": ["tofrizo quesadilla", "sazon quesadilla", "quesadilla", "tofrizo"]
+    },
+    "protein_shake": {
+      "display_name": "Protein Shake",
+      "calories": 150,
+      "protein": 25,
+      "carbs": 5,
+      "fat": 2,
+      "aliases": ["shake", "protein"]
+    },
+    "oatmeal": {
+      "display_name": "Morning Oatmeal",
+      "calories": 300,
+      "protein": 12,
+      "carbs": 54,
+      "fat": 6,
+      "aliases": ["oats", "oatmeal", "breakfast"]
+    }
+  }
