@@ -1,0 +1,18 @@
+# Core dependencies for cloud deployment
+Flask>=3.0.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.0
+google-api-python-client>=2.108.0
+google-api-core>=2.11.0
+googleapis-common-protos>=1.61.0
+Pillow>=9.5.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+APScheduler>=3.10.0
+python-dateutil>=2.8.0
+
+# SignalWire
+signalwire>=2.0.0
+
+# Note: NLP packages will be installed on-demand to reduce build time
