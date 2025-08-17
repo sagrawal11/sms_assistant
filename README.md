@@ -194,7 +194,7 @@ The app provides detailed logging for:
 
 **"NLP not understanding messages"**
 - Install spaCy model: `python -m spacy download en_core_web_sm`
-- Check intent patterns in `enhanced_nlp_processor.py`
+- Check intent patterns in `hugging_face_nlp.py`
 - Test with simple commands first
 
 ### Debug Commands
@@ -203,7 +203,7 @@ The app provides detailed logging for:
 python test_google_services.py
 
 # Test NLP processor
-python -c "from enhanced_nlp_processor import create_enhanced_processor; p = create_enhanced_processor({}); print(p.classify_intent('drank a bottle'))"
+python -c "from hugging_face_nlp import create_intelligent_processor; p = create_intelligent_processor({}); print(p.classify_intent('drank a bottle'))"
 
 # Check database
 sqlite3 personal_assistant.db "SELECT * FROM water_logs ORDER BY timestamp DESC LIMIT 5;"

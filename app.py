@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 from config import Config
-from enhanced_nlp_processor import create_enhanced_processor
+from hugging_face_nlp import create_intelligent_processor
 from google_services import GoogleServicesManager
 import base64
 
@@ -149,52 +149,46 @@ FOOD_DATABASE = load_food_database()
 class EnhancedMessageProcessor:
     def __init__(self):
         self.food_db = FOOD_DATABASE
-        self.nlp_processor = create_enhanced_processor(self.food_db)
+        self.nlp_processor = create_intelligent_processor(self.food_db)
         self.google_services = google_services
     
     def process_message(self, message_body):
-        """Main message processing pipeline using enhanced NLP"""
-        message = message_body.lower().strip()
+        """Main message processing pipeline using intelligent NLP"""
+        # Use intelligent NLP processor to classify intent and extract entities
+        intent = self.nlp_processor.classify_intent(message_body)
+        entities = self.nlp_processor.extract_entities(message_body)
         
-        # Use enhanced NLP processor to classify intent and extract entities
-        intents = self.nlp_processor.classify_intent(message)
-        entities = self.nlp_processor.extract_entities(message)
+        print(f"🧠 Intelligent NLP Results:")
+        print(f"   Intent: {intent}")
+        print(f"   Entities: {entities}")
         
-        print(f"Intents: {intents}")
-        print(f"Entities: {entities}")
+        # Process based on intent
+        response = self.handle_intent(intent, message_body, entities)
+        if response:
+            return response
         
-        # Process based on intents
-        for intent in intents:
-            response = self.handle_intent(intent, message, entities)
-            if response:
-                return response
-        
-        return self.fallback_response(message)
+        return self.fallback_response(message_body)
     
     def handle_intent(self, intent, message, entities):
-        """Handle specific intent"""
-        if intent == 'water':
+        """Handle specific intent using intelligent NLP"""
+        if intent == 'water_logging':
             return self.handle_water(message, entities)
-        elif intent == 'food':
+        elif intent == 'food_logging':
             return self.handle_food(message, entities)
-        elif intent == 'gym':
+        elif intent == 'gym_workout':
             return self.handle_gym(message, entities)
-        elif intent == 'todo':
+        elif intent == 'todo_add':
             return self.handle_todo(message, entities)
-        elif intent == 'reminder':
+        elif intent == 'reminder_set':
             return self.handle_reminder(message, entities)
-        elif intent == 'calendar' or intent == 'create_event':
+        elif intent == 'calendar_event':
             return self.handle_calendar(message, entities)
-        elif intent == 'check_schedule':
+        elif intent == 'schedule_check':
             return self.handle_schedule_check(message, entities)
-        elif intent == 'modify_event':
-            return self.handle_event_modification(message, entities)
-        elif intent == 'image':
+        elif intent == 'photo_upload':
             return self.handle_image_upload(message, entities)
-        elif intent == 'drive':
-            return self.handle_drive_organization(message, entities)
-        elif intent == 'completion':
-            return self.handle_completion(message, entities)
+        elif intent == 'unknown':
+            return self.fallback_response(message)
         
         return None
     
@@ -371,15 +365,15 @@ class EnhancedMessageProcessor:
         event_data = self.nlp_processor.parse_calendar_event(message)
         if event_data:
             # Create calendar event via Google services
-            success = self.google_services.create_calendar_event(
-                title=event_data['title'],
+            event_id = self.google_services.create_calendar_event(
+                summary=event_data['title'],
                 start_time=event_data['start_time'],
                 end_time=event_data['end_time'],
                 description=event_data['description'],
                 location=event_data['location']
             )
             
-            if success:
+            if event_id:
                 start_time_str = event_data['start_time'].strftime("%I:%M %p")
                 end_time_str = event_data['end_time'].strftime("%I:%M %p")
                 response = f"📅 Event created: {event_data['title']} from {start_time_str} to {end_time_str}"
@@ -397,14 +391,24 @@ class EnhancedMessageProcessor:
         if schedule_query:
             # Get schedule from Google Calendar
             events = self.google_services.get_calendar_events(
-                date=schedule_query['date']
+                start_date=schedule_query['date']
             )
             
             if events:
                 response = f"📅 Schedule for {schedule_query['date'].strftime('%B %d')}:\n"
                 for event in events[:5]:  # Show first 5 events
-                    time_str = event['start_time'].strftime("%I:%M %p")
-                    response += f"• {time_str}: {event['title']}\n"
+                    # Parse the start time from Google's format
+                    start_time = event['start']
+                    if 'T' in start_time:  # Has time component
+                        try:
+                            dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                            time_str = dt.strftime("%I:%M %p")
+                        except:
+                            time_str = "All day"
+                    else:
+                        time_str = "All day"
+                    
+                    response += f"• {time_str}: {event['summary']}\n"
                 if len(events) > 5:
                     response += f"... and {len(events) - 5} more events"
                 return response
