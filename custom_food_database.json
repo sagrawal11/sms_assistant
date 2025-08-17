@@ -1,0 +1,183 @@
+{
+  "breakfast": {
+    "oatmeal": {
+      "calories": 150,
+      "protein": 5,
+      "carbs": 27,
+      "fat": 3,
+      "fiber": 4,
+      "serving_size": "1 cup cooked",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    },
+    "eggs": {
+      "calories": 70,
+      "protein": 6,
+      "carbs": 1,
+      "fat": 5,
+      "fiber": 0,
+      "serving_size": "1 large egg",
+      "common_servings": ["1 egg", "2 eggs", "3 eggs"]
+    },
+    "toast": {
+      "calories": 80,
+      "protein": 3,
+      "carbs": 15,
+      "fat": 1,
+      "fiber": 2,
+      "serving_size": "1 slice",
+      "common_servings": ["1 slice", "2 slices"]
+    },
+    "protein_shake": {
+      "calories": 120,
+      "protein": 24,
+      "carbs": 3,
+      "fat": 1,
+      "fiber": 0,
+      "serving_size": "1 scoop",
+      "common_servings": ["1 scoop", "2 scoops"]
+    }
+  },
+  "lunch": {
+    "chicken_breast": {
+      "calories": 165,
+      "protein": 31,
+      "carbs": 0,
+      "fat": 3.6,
+      "fiber": 0,
+      "serving_size": "4 oz cooked",
+      "common_servings": ["3 oz", "4 oz", "6 oz", "8 oz"]
+    },
+    "salmon": {
+      "calories": 208,
+      "protein": 25,
+      "carbs": 0,
+      "fat": 12,
+      "fiber": 0,
+      "serving_size": "3 oz cooked",
+      "common_servings": ["3 oz", "4 oz", "6 oz"]
+    },
+    "rice": {
+      "calories": 130,
+      "protein": 2.7,
+      "carbs": 28,
+      "fat": 0.3,
+      "fiber": 0.4,
+      "serving_size": "1/2 cup cooked",
+      "common_servings": ["1/4 cup", "1/2 cup", "3/4 cup", "1 cup"]
+    },
+    "sweet_potato": {
+      "calories": 103,
+      "protein": 2.3,
+      "carbs": 24,
+      "fat": 0.2,
+      "fiber": 3.8,
+      "serving_size": "1 medium",
+      "common_servings": ["1 small", "1 medium", "1 large"]
+    }
+  },
+  "dinner": {
+    "steak": {
+      "calories": 250,
+      "protein": 26,
+      "carbs": 0,
+      "fat": 15,
+      "fiber": 0,
+      "serving_size": "4 oz cooked",
+      "common_servings": ["4 oz", "6 oz", "8 oz", "10 oz"]
+    },
+    "pasta": {
+      "calories": 200,
+      "protein": 7,
+      "carbs": 42,
+      "fat": 1,
+      "fiber": 2,
+      "serving_size": "1 cup cooked",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    },
+    "broccoli": {
+      "calories": 55,
+      "protein": 3.7,
+      "carbs": 11,
+      "fat": 0.6,
+      "fiber": 5.2,
+      "serving_size": "1 cup chopped",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    },
+    "asparagus": {
+      "calories": 27,
+      "protein": 3,
+      "carbs": 5,
+      "fat": 0.2,
+      "fiber": 2.8,
+      "serving_size": "1 cup",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    }
+  },
+  "snacks": {
+    "protein_bar": {
+      "calories": 200,
+      "protein": 20,
+      "carbs": 22,
+      "fat": 6,
+      "fiber": 3,
+      "serving_size": "1 bar",
+      "common_servings": ["1 bar", "1/2 bar"]
+    },
+    "almonds": {
+      "calories": 164,
+      "protein": 6,
+      "carbs": 6,
+      "fat": 14,
+      "fiber": 3.5,
+      "serving_size": "1 oz (23 almonds)",
+      "common_servings": ["1/4 cup", "1/2 cup", "1 cup"]
+    },
+    "apple": {
+      "calories": 95,
+      "protein": 0.5,
+      "carbs": 25,
+      "fat": 0.3,
+      "fiber": 4.4,
+      "serving_size": "1 medium apple",
+      "common_servings": ["1 small", "1 medium", "1 large"]
+    },
+    "banana": {
+      "calories": 105,
+      "protein": 1.3,
+      "carbs": 27,
+      "fat": 0.4,
+      "fiber": 3.1,
+      "serving_size": "1 medium banana",
+      "common_servings": ["1 small", "1 medium", "1 large"]
+    }
+  },
+  "drinks": {
+    "milk": {
+      "calories": 103,
+      "protein": 8,
+      "carbs": 12,
+      "fat": 2.4,
+      "fiber": 0,
+      "serving_size": "1 cup",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    },
+    "orange_juice": {
+      "calories": 111,
+      "protein": 1.7,
+      "carbs": 26,
+      "fat": 0.5,
+      "fiber": 0.5,
+      "serving_size": "1 cup",
+      "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+    },
+    "coffee": {
+      "calories": 2,
+      "protein": 0.3,
+      "carbs": 0,
+      "fat": 0,
+      "fiber": 0,
+      "serving_size": "1 cup black",
+      "common_servings": ["1 cup", "2 cups", "3 cups"]
+    }
+  }
+}

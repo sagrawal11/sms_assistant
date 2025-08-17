@@ -5,156 +5,42 @@ Intelligent NLP Processor using Hugging Face Transformers
 
 import re
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
+import numpy as np
+from datetime import datetime, timedelta
+import re
+from spellchecker import SpellChecker
 
 class IntelligentNLPProcessor:
-    def __init__(self):
-        """Initialize the intelligent NLP processor"""
+    def __init__(self, food_db=None):
+        """Initialize the intelligent NLP processor with custom data"""
         print("🧠 Initializing Intelligent NLP Processor...")
         
-        # Load the sentence transformer model (free, lightweight)
+        # Load sentence transformer model
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         print("✅ Sentence transformer model loaded")
         
-        # Define intent examples for few-shot learning
-        self.intent_examples = {
-            'water_logging': [
-                "drank a bottle of water",
-                "had 24oz water",
-                "finished my water bottle",
-                "drank 2 glasses of water",
-                "hydrated with 500ml water",
-                "hydrated",
-                "drank water",
-                "had water",
-                "finished water",
-                "consumed water"
-            ],
-            'food_logging': [
-                "ate chicken breast for lunch",
-                "had oatmeal with berries",
-                "consumed 2000 calories today",
-                "ate protein bar as snack",
-                "had salmon with rice for dinner",
-                "breakfast: eggs and toast",
-                "lunch: turkey sandwich",
-                "dinner: steak and potatoes",
-                "snack: apple and nuts",
-                "meal: pasta with meatballs",
-                "ate breakfast",
-                "had lunch",
-                "consumed dinner",
-                "ate meal"
-            ],
-            'gym_workout': [
-                "hit chest today: bench 225x5, incline 185x8",
-                "worked out legs: squat 315x3, deadlift 405x1",
-                "hit back: pullups 10x3, rows 135x8",
-                "gym session: bench press 225x5, shoulder press 135x8",
-                "worked out arms: curls 45x10, tricep extensions 60x8",
-                "hit chest",
-                "worked out",
-                "gym session",
-                "workout",
-                "exercise"
-            ],
-            'calendar_event': [
-                "meeting with John tomorrow at 3pm",
-                "lunch with Sarah on Tuesday",
-                "block out 2-4pm for team sync",
-                "appointment with doctor next Friday at 10am",
-                "call with client this evening at 7pm",
-                "lunch with Ben on Tuesday",
-                "coffee with Alex tomorrow morning",
-                "workout session at 6am tomorrow",
-                "team standup every Monday at 9am",
-                "client presentation on Wednesday at 2pm",
-                "meeting with marketing team tomorrow at 2pm for 2 hours",
-                "lunch with client on Friday at 1pm for 90 minutes",
-                "meeting with engineering team from 10am-12pm on Monday",
-                "call with client",
-                "appointment",
-                "meeting",
-                "lunch",
-                "dinner",
-                "coffee"
-            ],
-            'schedule_check': [
-                "what's my schedule looking like on Thursday",
-                "show me my calendar for tomorrow",
-                "what meetings do I have today",
-                "check my schedule for next week",
-                "am I free on Friday afternoon",
-                "what's on my calendar tomorrow",
-                "show schedule for next Monday",
-                "check if I'm busy on Wednesday",
-                "what appointments do I have this week",
-                "am I available on Saturday morning",
-                "check schedule",
-                "show calendar",
-                "what's on schedule",
-                "am I free",
-                "am I busy"
-            ],
-            'reminder_set': [
-                "remind me to call mom this evening",
-                "don't forget to buy groceries tomorrow",
-                "reminder to pay bills on Friday",
-                "set reminder for dentist appointment",
-                "remind me to text John later",
-                "set alarm for 6am tomorrow",
-                "remind me to call the bank",
-                "reminder",
-                "remind me",
-                "don't forget",
-                "set reminder",
-                "set alarm"
-            ],
-            'todo_add': [
-                "add buy groceries to my todo list",
-                "need to remember to call the bank",
-                "todo: schedule car maintenance",
-                "add book flight to vacation list",
-                "remember to pick up dry cleaning",
-                "add dentist appointment to list",
-                "todo: buy birthday gift",
-                "need to schedule haircut",
-                "add pay rent to list",
-                "remember to renew insurance",
-                "add to todo",
-                "todo list",
-                "need to",
-                "remember to"
-            ],
-            'photo_upload': [
-                "add this photo to work folder",
-                "save this receipt in receipts folder",
-                "organize this image in personal folder",
-                "upload this document to drive",
-                "store this photo in family folder",
-                "save receipt to work folder",
-                "add photo to vacation album",
-                "organize document in project folder",
-                "upload image to shared drive",
-                "store photo in archive folder",
-                "add this photo",
-                "save this",
-                "upload this",
-                "organize this"
-            ]
-        }
+        # Initialize spell checker
+        self.spell_checker = SpellChecker()
+        print("✅ Spell checker initialized")
         
-        # Create embeddings for all intent examples
-        self.intent_embeddings = {}
-        for intent, examples in self.intent_examples.items():
-            embeddings = self.model.encode(examples)
-            self.intent_embeddings[intent] = embeddings
+        # Load custom common sayings
+        self.common_sayings = self._load_common_sayings()
         
+        # Load custom food database
+        self.food_db = food_db or self._load_food_database()
+        
+        # Create intent examples from custom sayings
+        self.intent_examples = self._create_intent_examples()
+        
+        # Pre-compute embeddings for all examples
+        self.example_embeddings = self.model.encode(self.intent_examples)
         print("✅ Intent embeddings created")
         
         # Time parsing patterns
@@ -169,8 +55,46 @@ class IntelligentNLPProcessor:
         
         print("🧠 Intelligent NLP Processor ready!")
     
+    def _load_common_sayings(self):
+        """Load custom common sayings from file"""
+        try:
+            with open('common_sayings.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("⚠️  common_sayings.json not found, using default examples")
+            return self._get_default_intent_examples()
+    
+    def _load_food_database(self):
+        """Load custom food database from file"""
+        try:
+            with open('custom_food_database.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("⚠️  custom_food_database.json not found, using default food DB")
+            return {}
+    
+    def _get_default_intent_examples(self):
+        """Fallback default intent examples if custom file not found"""
+        return {
+            "water_logging": ["drank water", "had water", "finished water bottle"],
+            "food_logging": ["ate breakfast", "had lunch", "dinner time"],
+            "gym_workout": ["hit the gym", "worked out", "lifted weights"],
+            "calendar_event": ["meeting with", "appointment with", "lunch with"],
+            "schedule_check": ["what's my schedule", "show my calendar"],
+            "reminder_set": ["remind me to", "don't forget to"],
+            "todo_add": ["add to todo", "add to list"],
+            "photo_upload": ["add this photo to", "save this to"]
+        }
+    
+    def _create_intent_examples(self):
+        """Create flat list of examples from custom sayings"""
+        examples = []
+        for intent, phrases in self.common_sayings.items():
+            examples.extend(phrases)
+        return examples
+    
     def clean_message(self, message: str) -> str:
-        """Clean message by removing Google Voice metadata and formatting"""
+        """Clean message by removing Google Voice metadata, formatting, and fixing common typos"""
         # Remove Google Voice metadata
         message = re.sub(r'<https://voice\.google\.com[^>]*>', '', message)
         message = re.sub(r'your account <https://[^>]*>', '', message)
@@ -181,38 +105,99 @@ class IntelligentNLPProcessor:
         message = re.sub(r'\s+', ' ', message)
         message = message.strip()
         
+        # Fix common food-related typos
+        message = self._fix_common_typos(message)
+        
+        # Spell check and correct
+        message = self._spell_check_message(message)
+        
         return message
     
+    def _fix_common_typos(self, message: str) -> str:
+        """Fix common typos that affect intent classification"""
+        # Common food-related typos
+        typos = {
+            'are': 'ate',  # "are half a tub" -> "ate half a tub"
+            'eated': 'ate',
+            'eaten': 'ate',
+            'drinked': 'drank',
+            'drunk': 'drank',
+            'hitted': 'hit',
+            'hitted the': 'hit the',
+            'workout out': 'worked out',
+            'workouted': 'worked out',
+            'meeting with': 'meeting with',  # Keep as is
+            'appointment with': 'appointment with'  # Keep as is
+        }
+        
+        message_lower = message.lower()
+        for typo, correction in typos.items():
+            if typo in message_lower:
+                # Replace the typo with correction (case-insensitive)
+                message = re.sub(rf'\b{typo}\b', correction, message, flags=re.IGNORECASE)
+        
+        return message
+    
+    def _spell_check_message(self, message: str) -> str:
+        """Spell check and correct the message"""
+        words = message.split()
+        corrected_words = []
+        
+        for word in words:
+            # Skip words with numbers or special characters
+            if re.search(r'[0-9@#$%^&*()]', word):
+                corrected_words.append(word)
+                continue
+            
+            # Skip very short words
+            if len(word) <= 2:
+                corrected_words.append(word)
+                continue
+            
+            # Check if word is misspelled
+            if word.lower() not in self.spell_checker:
+                # Get the most likely correction
+                correction = self.spell_checker.correction(word)
+                if correction and correction != word:
+                    corrected_words.append(correction)
+                    print(f"🔤 Spell corrected: '{word}' -> '{correction}'")
+                else:
+                    corrected_words.append(word)
+            else:
+                corrected_words.append(word)
+        
+        return ' '.join(corrected_words)
+    
     def classify_intent(self, message: str) -> str:
-        """Classify message intent using semantic similarity with improved edge case handling"""
+        """Classify the intent of a message using semantic similarity"""
         # Clean the message first
         clean_message = self.clean_message(message)
         
-        if not clean_message:
-            return 'unknown'
-        
-        # Encode the input message
+        # Encode the message
         message_embedding = self.model.encode([clean_message])
         
-        # Calculate similarity with all intent examples
+        # Find the best matching intent
         best_intent = 'unknown'
         best_score = 0.0
         
-        for intent, embeddings in self.intent_embeddings.items():
+        # Check each intent category
+        for intent, phrases in self.common_sayings.items():
+            # Encode all phrases for this intent
+            intent_embeddings = self.model.encode(phrases)
+            
             # Calculate cosine similarity
-            similarities = cosine_similarity(message_embedding, embeddings)
+            similarities = cosine_similarity(message_embedding, intent_embeddings)
             max_similarity = np.max(similarities)
             
             if max_similarity > best_score:
                 best_score = max_similarity
                 best_intent = intent
         
-        # Only return intent if confidence is high enough
-        if best_score > 0.5:  # Lowered threshold for better coverage
-            return best_intent
+        # If semantic similarity is too low, use fallback
+        if best_score < 0.5:
+            return self._fallback_classification(clean_message)
         
-        # Fallback classification for edge cases
-        return self._fallback_classification(clean_message)
+        return best_intent
     
     def _fallback_classification(self, message: str) -> str:
         """Enhanced fallback classification using keyword matching for edge cases"""

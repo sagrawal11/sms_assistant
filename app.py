@@ -148,8 +148,16 @@ FOOD_DATABASE = load_food_database()
 # Core message processing
 class EnhancedMessageProcessor:
     def __init__(self):
-        self.food_db = FOOD_DATABASE
-        self.nlp_processor = create_intelligent_processor(self.food_db)
+        # Load custom food database
+        try:
+            with open('custom_food_database.json', 'r') as f:
+                custom_food_db = json.load(f)
+                print("✅ Custom food database loaded")
+        except FileNotFoundError:
+            print("⚠️  custom_food_database.json not found, using default")
+            custom_food_db = FOOD_DATABASE
+        
+        self.nlp_processor = create_intelligent_processor(custom_food_db)
         self.google_services = google_services
     
     def process_message(self, message_body):
