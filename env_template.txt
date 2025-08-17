@@ -7,6 +7,10 @@ GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 GOOGLE_CREDENTIALS_FILE=credentials.json
 
+# Google Voice Web Automation Credentials
+GOOGLE_EMAIL=your_gmail_address@gmail.com
+GOOGLE_PASSWORD=your_app_password_here
+
 # Gmail Webhook Security
 GMAIL_WEBHOOK_SECRET=your-secret-key-here
 
