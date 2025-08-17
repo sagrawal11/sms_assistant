@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import json
 import requests
-from src.config import Config
+from config import Config
 # Google Voice automation removed - using push notifications instead
 
 # Google API scopes

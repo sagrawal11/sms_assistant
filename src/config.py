@@ -30,6 +30,7 @@ class Config:
     # App Settings
     MORNING_CHECKIN_HOUR = int(os.getenv('MORNING_CHECKIN_HOUR', 8))
     GMAIL_POLLING_INTERVAL = int(os.getenv('GMAIL_POLLING_INTERVAL', 5))
+    EVENING_REMINDER_HOUR = int(os.getenv('EVENING_REMINDER_HOUR', 20))
     
     # Database
     DATABASE_PATH = os.path.join(
@@ -37,6 +38,25 @@ class Config:
         'databases',
         'personal_assistant.db'
     )
+    
+    # Food Database
+    FOOD_DATABASE_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'data',
+        'wu_foods.json'
+    )
+    
+    # Google Drive Folders
+    DRIVE_FOLDERS = {
+        'receipts': os.getenv('DRIVE_RECEIPTS_FOLDER_ID'),
+        'documents': os.getenv('DRIVE_DOCUMENTS_FOLDER_ID'),
+        'photos': os.getenv('DRIVE_PHOTOS_FOLDER_ID'),
+        'work': os.getenv('DRIVE_WORK_FOLDER_ID'),
+        'personal': os.getenv('DRIVE_PERSONAL_FOLDER_ID')
+    }
+    
+    # Legacy phone number (for compatibility)
+    YOUR_PHONE_NUMBER = os.getenv('YOUR_PHONE_NUMBER', '')
     
     @classmethod
     def validate(cls):

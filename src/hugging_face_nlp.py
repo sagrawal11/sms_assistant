@@ -58,19 +58,31 @@ class IntelligentNLPProcessor:
     def _load_common_sayings(self):
         """Load custom common sayings from file"""
         try:
-            with open('common_sayings.json', 'r') as f:
+            # Try to load from data directory
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'data',
+                'common_sayings.json'
+            )
+            with open(config_path, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("⚠️  common_sayings.json not found, using default examples")
+            print("⚠️  Common sayings not found, using default examples")
             return self._get_default_intent_examples()
     
     def _load_food_database(self):
         """Load custom food database from file"""
         try:
-            with open('custom_food_database.json', 'r') as f:
+            # Try to load from data directory
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'data',
+                'wu_foods.json'
+            )
+            with open(config_path, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("⚠️  custom_food_database.json not found, using default food DB")
+            print("⚠️  Custom food database not found, using default food DB")
             return {}
     
     def _get_default_intent_examples(self):

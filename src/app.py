@@ -365,11 +365,11 @@ class EnhancedMessageProcessor:
     def __init__(self):
         # Load custom food database
         try:
-            with open('custom_food_database.json', 'r') as f:
+            with open(config.FOOD_DATABASE_PATH, 'r') as f:
                 custom_food_db = json.load(f)
                 print("✅ Custom food database loaded")
         except FileNotFoundError:
-            print("⚠️  custom_food_database.json not found, using default")
+            print("⚠️  Custom food database not found, using default")
             custom_food_db = FOOD_DATABASE
         
         self.nlp_processor = create_intelligent_processor(custom_food_db)
