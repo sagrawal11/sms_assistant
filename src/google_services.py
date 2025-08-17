@@ -1,18 +1,24 @@
 import os
-import base64
-import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from google.oauth2.credentials import Credentials
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseUpload
-from PIL import Image
-import io
+import base64
+import email
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import mimetypes
-from config import Config
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict
+import json
+import requests
+from src.config import Config
 # Google Voice automation removed - using push notifications instead
 
 # Google API scopes

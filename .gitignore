@@ -15,6 +15,7 @@ token.json
 *.db
 *.sqlite
 *.sqlite3
+databases/
 personal_assistant.db
 
 # Python cache and virtual environments
@@ -46,6 +47,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+sms_venv/
 
 # IDE and editor files
 .vscode/
@@ -73,5 +75,23 @@ logs/
 temp/
 tmp/
 
-sms_venv/
+# Project specific
+# Keep data files but ignore sensitive ones
+data/*.json
+!data/wu_foods.json
+!data/snacks.json
+!data/common_sayings.json
+
+# Configuration files (keep templates, ignore actual configs)
+config/client_secrets.json
+config/.env
+
+# Test files
+tests/
+*.test.py
+test_*.py
+
+# Documentation (keep but ignore any generated docs)
+docs/*.html
+docs/*.pdf
 

@@ -1,0 +1,144 @@
+{
+  "dining_hall": {
+    "breakfast": {
+      "scrambled_eggs": {
+        "restaurant": "main_dining",
+        "calories": 140,
+        "protein": 12,
+        "carbs": 2,
+        "fat": 10,
+        "fiber": 0,
+        "serving_size": "2 eggs",
+        "common_servings": ["1 egg", "2 eggs", "3 eggs"]
+      },
+      "oatmeal": {
+        "restaurant": "main_dining",
+        "calories": 150,
+        "protein": 5,
+        "carbs": 27,
+        "fat": 3,
+        "fiber": 4,
+        "serving_size": "1 cup cooked",
+        "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+      },
+      "pancakes": {
+        "restaurant": "main_dining",
+        "calories": 200,
+        "protein": 4,
+        "carbs": 38,
+        "fat": 3,
+        "fiber": 1,
+        "serving_size": "2 medium pancakes",
+        "common_servings": ["1 pancake", "2 pancakes", "3 pancakes"]
+      }
+    },
+    "lunch": {
+      "grilled_chicken_breast": {
+        "restaurant": "main_dining",
+        "calories": 165,
+        "protein": 31,
+        "carbs": 0,
+        "fat": 3.6,
+        "fiber": 0,
+        "serving_size": "4 oz cooked",
+        "common_servings": ["3 oz", "4 oz", "6 oz", "8 oz"]
+      },
+      "pasta_marinara": {
+        "restaurant": "main_dining",
+        "calories": 200,
+        "protein": 7,
+        "carbs": 42,
+        "fat": 1,
+        "fiber": 2,
+        "serving_size": "1 cup cooked",
+        "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+      },
+      "mixed_green_salad": {
+        "restaurant": "main_dining",
+        "calories": 25,
+        "protein": 2,
+        "carbs": 4,
+        "fat": 0.5,
+        "fiber": 2,
+        "serving_size": "1 cup",
+        "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+      }
+    },
+    "dinner": {
+      "salmon_fillet": {
+        "restaurant": "main_dining",
+        "calories": 208,
+        "protein": 25,
+        "carbs": 0,
+        "fat": 12,
+        "fiber": 0,
+        "serving_size": "3 oz cooked",
+        "common_servings": ["3 oz", "4 oz", "6 oz"]
+      },
+      "brown_rice": {
+        "restaurant": "main_dining",
+        "calories": 110,
+        "protein": 2.5,
+        "carbs": 23,
+        "fat": 0.9,
+        "fiber": 1.8,
+        "serving_size": "1/2 cup cooked",
+        "common_servings": ["1/4 cup", "1/2 cup", "3/4 cup", "1 cup"]
+      },
+      "steamed_broccoli": {
+        "restaurant": "main_dining",
+        "calories": 55,
+        "protein": 3.7,
+        "carbs": 11,
+        "fat": 0.6,
+        "fiber": 5.2,
+        "serving_size": "1 cup chopped",
+        "common_servings": ["1/2 cup", "1 cup", "1.5 cups"]
+      }
+    },
+    "snacks": {
+      "protein_bar": {
+        "restaurant": "convenience_store",
+        "calories": 200,
+        "protein": 20,
+        "carbs": 22,
+        "fat": 6,
+        "fiber": 3,
+        "serving_size": "1 bar",
+        "common_servings": ["1 bar", "1/2 bar"]
+      },
+      "apple": {
+        "restaurant": "convenience_store",
+        "calories": 95,
+        "protein": 0.5,
+        "carbs": 25,
+        "fat": 0.3,
+        "fiber": 4.4,
+        "serving_size": "1 medium apple",
+        "common_servings": ["1 small", "1 medium", "1 large"]
+      }
+    }
+  },
+  "fast_food": {
+    "chicken_sandwich": {
+      "restaurant": "chick_fil_a",
+      "calories": 440,
+      "protein": 28,
+      "carbs": 41,
+      "fat": 18,
+      "fiber": 2,
+      "serving_size": "1 sandwich",
+      "common_servings": ["1 sandwich", "1/2 sandwich"]
+    },
+    "burger": {
+      "restaurant": "mcdonalds",
+      "calories": 250,
+      "protein": 12,
+      "carbs": 30,
+      "fat": 9,
+      "fiber": 1,
+      "serving_size": "1 burger",
+      "common_servings": ["1 burger", "1/2 burger"]
+    }
+  }
+}

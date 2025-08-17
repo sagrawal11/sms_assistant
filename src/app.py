@@ -1,13 +1,16 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from flask import Flask, request, jsonify
 import sqlite3
 import json
-import os
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
-from config import Config
-from hugging_face_nlp import create_intelligent_processor
-from google_services import GoogleServicesManager
+from src.config import Config
+from src.hugging_face_nlp import create_intelligent_processor
+from src.google_services import GoogleServicesManager
 import base64
 
 # Initialize Flask app
