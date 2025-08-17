@@ -154,6 +154,43 @@ except ValueError as e:
     print("Please check your .env file and ensure all required variables are set")
     exit(1)
 
+# Ensure required directories exist
+def ensure_directories():
+    """Create required directories if they don't exist"""
+    try:
+        # Debug: Show current working directory
+        print(f"🔍 Current working directory: {os.getcwd()}")
+        
+        # Create databases directory
+        db_dir = os.path.dirname(config.DATABASE_PATH)
+        print(f"🔍 Database directory path: {db_dir}")
+        print(f"🔍 Full database path: {config.DATABASE_PATH}")
+        os.makedirs(db_dir, exist_ok=True)
+        print(f"✅ Database directory ensured: {db_dir}")
+        
+        # Create data directory
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        print(f"🔍 Data directory path: {data_dir}")
+        os.makedirs(data_dir, exist_ok=True)
+        print(f"✅ Data directory ensured: {data_dir}")
+        
+        # Check if files actually exist
+        if os.path.exists(config.DATABASE_PATH):
+            print(f"✅ Database file exists: {config.DATABASE_PATH}")
+        else:
+            print(f"❌ Database file missing: {config.DATABASE_PATH}")
+            
+        if os.path.exists(config.FOOD_DATABASE_PATH):
+            print(f"✅ Food database exists: {config.FOOD_DATABASE_PATH}")
+        else:
+            print(f"❌ Food database missing: {config.FOOD_DATABASE_PATH}")
+        
+    except Exception as e:
+        print(f"⚠️  Error creating directories: {e}")
+
+# Create directories before initializing services
+ensure_directories()
+
 # Initialize Google services
 # google_services = GoogleServicesManager() # This line is now redundant as it's initialized above
 
