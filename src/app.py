@@ -197,25 +197,16 @@ def check_reminders():
     except Exception as e:
         print(f"❌ Error checking reminders: {e}")
 
-# Initialize scheduler with better configuration
+# Initialize the scheduler
 scheduler = BackgroundScheduler(
     job_defaults={
-        'coalesce': True,  # Combine multiple pending jobs
-        'max_instances': 1,  # Only allow 1 instance of each job
-        'misfire_grace_time': 15  # Grace period for missed executions
+        'coalesce': True,
+        'max_instances': 1,
+        'misfire_grace_time': 15
     }
 )
 
-# Add Gmail polling job
-scheduler.add_job(
-    func=check_gmail_for_sms,
-    trigger=IntervalTrigger(seconds=5),
-    id='check_gmail_for_sms',
-    name='Gmail SMS Polling',
-    replace_existing=True
-)
-
-# Add morning check-in job
+# Add jobs to scheduler
 scheduler.add_job(
     func=morning_checkin,
     trigger='cron',
@@ -225,7 +216,6 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# Add reminder checker job (every minute)
 scheduler.add_job(
     func=check_reminders,
     trigger=IntervalTrigger(minutes=1),
@@ -234,10 +224,10 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# Add daily database dump job at 5 AM
 scheduler.add_job(
     func=daily_database_dump,
-    trigger=CronTrigger(hour=5, minute=0),
+    trigger='cron',
+    hour=5,
     id='daily_dump',
     name='Daily Database Dump',
     replace_existing=True
@@ -928,8 +918,7 @@ def health_check():
                 "calendar_events": calendar_count
             },
             "scheduled_jobs": [
-                "Gmail SMS Polling (every 5s)",
-                f"Morning Check-in ({config.MORNING_CHECKIN_HOUR}:00 AM)",
+                "Morning Check-in (every day)",
                 "Reminder Checker (every 1m)",
                 "Daily Database Dump (5:00 AM)"
             ]
@@ -1074,127 +1063,7 @@ def check_pending_reminders():
     except Exception as e:
         print(f"Error checking reminders: {e}")
 
-def check_gmail_for_sms():
-    """Check Gmail every 5 seconds for new SMS from Google Voice"""
-    try:
-        # Get the last processed message ID from database
-        conn = sqlite3.connect(config.DATABASE_PATH)
-        cursor = conn.cursor()
-        
-        # Create table to track processed messages if it doesn't exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS processed_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message_id TEXT UNIQUE,
-                processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Get last processed message ID
-        cursor.execute('''
-            SELECT message_id FROM processed_messages 
-            ORDER BY processed_at DESC LIMIT 1
-        ''')
-        last_processed = cursor.fetchone()
-        last_message_id = last_processed[0] if last_processed else None
-        
-        # Query Gmail for new messages
-        try:
-            # Get recent messages from Gmail
-            messages_result = google_services.gmail_service.users().messages().list(
-                userId='me',
-                labelIds=['INBOX'],
-                maxResults=10,
-                q='from:voice.google.com'  # Only messages from Google Voice
-            ).execute()
-            
-            messages = messages_result.get('messages', [])
-            
-            if not messages:
-                return
-            
-            # Process new messages
-            for message in messages:
-                message_id = message['id']
-                
-                # Skip if already processed
-                if last_message_id and message_id == last_message_id:
-                    break
-                
-                # Get full message details
-                try:
-                    full_message = google_services.gmail_service.users().messages().get(
-                        userId='me', id=message_id
-                    ).execute()
-                    
-                    # Extract message body
-                    body = google_services._extract_message_body(full_message)
-                    
-                    if body:
-                        print(f"📱 Processing SMS from Gmail: {body[:50]}...")
-                        
-                        # Process with your assistant
-                        processor = EnhancedMessageProcessor()
-                        response_text = processor.process_message(body)
-                        
-                        if response_text:
-                            print(f"🤖 Generated response: {response_text}")
-                            
-                            # Send push notification instead of SMS
-                            success = google_services.send_push_notification(
-                                "Alfred the Butler",
-                                response_text
-                            )
-                            
-                            if success:
-                                print(f"📱 Push notification sent successfully")
-                            else:
-                                print(f"❌ Failed to send push notification")
-                        
-                        # Mark as processed
-                        cursor.execute('''
-                            INSERT OR REPLACE INTO processed_messages (message_id)
-                            VALUES (?)
-                        ''', (message_id,))
-                        
-                except Exception as e:
-                    print(f"Error processing message {message_id}: {e}")
-                    continue
-            
-            conn.commit()
-            
-        except Exception as e:
-            print(f"Error querying Gmail: {e}")
-        
-        conn.close()
-        
-    except Exception as e:
-        print(f"Error in Gmail SMS check: {e}")
-
-# Schedule morning check-in
-# scheduler.add_job(
-#     func=morning_checkin,
-#     trigger="cron",
-#     hour=config.MORNING_CHECKIN_HOUR,
-#     minute=0,
-#     id='morning_checkin'
-# )
-
-# Schedule reminder checks every minute
-scheduler.add_job(
-    func=check_pending_reminders,
-    trigger="interval",
-    minutes=1,
-    id='reminder_check'
-)
-
-# Schedule Gmail SMS checks every 5 seconds
-# scheduler.add_job(
-#     func=check_gmail_for_sms,
-#     trigger="interval",
-#     seconds=5,
-#     id='gmail_sms_check'
-# )
+# Old Gmail SMS checking function removed - now using SignalWire webhooks
 
 # Cleanup
 atexit.register(lambda: scheduler.shutdown())
