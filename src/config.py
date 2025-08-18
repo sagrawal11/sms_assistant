@@ -10,7 +10,7 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
     GMAIL_WEBHOOK_SECRET = os.getenv('GMAIL_WEBHOOK_SECRET')
     GOOGLE_CREDENTIALS_FILE = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'config',
         'client_secrets.json'
     )
@@ -21,7 +21,7 @@ class Config:
     # SignalWire Configuration (primary SMS)
     SIGNALWIRE_PROJECT_ID = os.getenv('SIGNALWIRE_PROJECT_ID')
     SIGNALWIRE_AUTH_TOKEN = os.getenv('SIGNALWIRE_AUTH_TOKEN')
-    SIGNALWIRE_SPACE_URL = os.getenv('SIGNALWIRE_SPACE_URL', 'https://your-space.signalwire.com')
+    SIGNALWIRE_SPACE_URL = os.getenv('SIGNALWIRE_SPACE_URL', 'https://the-butler.signalwire.com')
     SIGNALWIRE_PHONE_NUMBER = os.getenv('SIGNALWIRE_PHONE_NUMBER')
     
     # Communication Mode
@@ -34,14 +34,14 @@ class Config:
     
     # Database
     DATABASE_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'databases',
         'personal_assistant.db'
     )
     
     # Food Database
     FOOD_DATABASE_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data',
         'wu_foods.json'
     )

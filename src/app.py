@@ -171,7 +171,7 @@ def ensure_directories():
         print(f"✅ Database directory ensured: {db_dir}")
         
         # Create data directory
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
         print(f"🔍 Data directory path: {data_dir}")
         os.makedirs(data_dir, exist_ok=True)
         print(f"✅ Data directory ensured: {data_dir}")
@@ -195,7 +195,7 @@ def ensure_directories():
         # List contents of key directories
         print(f"\n📁 Contents of project root:")
         try:
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             if os.path.exists(project_root):
                 for item in os.listdir(project_root):
                     item_path = os.path.join(project_root, item)
@@ -301,7 +301,7 @@ def view_csv(filename):
         if filename not in allowed_files:
             return jsonify({'error': 'Invalid filename'}), 400
         
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
         csv_path = os.path.join(data_dir, filename)
         
         if not os.path.exists(csv_path):
@@ -328,7 +328,7 @@ def view_csv(filename):
 def list_csvs():
     """List all available CSV files with their sizes"""
     try:
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
         
         if not os.path.exists(data_dir):
             return jsonify({'csvs': []})

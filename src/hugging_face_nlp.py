@@ -60,7 +60,7 @@ class IntelligentNLPProcessor:
         try:
             # Try to load from data directory
             config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 'data',
                 'common_sayings.json'
             )
@@ -75,7 +75,7 @@ class IntelligentNLPProcessor:
         try:
             # Try to load from data directory
             config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 'data',
                 'wu_foods.json'
             )
