@@ -1,9 +1,9 @@
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-databases/
-personal_assistant.db
+# Database files - ALLOW for deployment
+# *.db
+# *.sqlite
+# *.sqlite3
+# databases/
+# personal_assistant.db
 
 # Python cache and virtual environments
 __pycache__/
@@ -29,11 +29,11 @@ sms_venv/
 *.p12
 *.pfx
 
-# Google API credentials
-client_secrets.json
-credentials.json
-token.json
-service_account.json
+# Google API credentials - ALLOW for deployment
+# client_secrets.json
+# credentials.json
+# token.json
+# service_account.json
 
 # Logs
 *.log
@@ -57,19 +57,18 @@ Thumbs.db
 temp/
 tmp/
 
-# Project specific
-# Keep data files but ignore sensitive ones
-data/*.json
-!data/wu_foods.json
-!data/snacks.json
-!data/common_sayings.json
+# Project specific - ALLOW data files for deployment
+# data/*.json
+# !data/wu_foods.json
+# !data/snacks.json
+# !data/common_sayings.json
 
 # Keep CSV files for data analysis
 data/*.csv
 
-# Configuration files (keep templates, ignore actual configs)
-config/client_secrets.json
-config/.env
+# Configuration files - ALLOW for deployment
+# config/client_secrets.json
+# config/.env
 
 # Test files
 tests/
