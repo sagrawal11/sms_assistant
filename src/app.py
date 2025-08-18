@@ -160,6 +160,8 @@ def ensure_directories():
     try:
         # Debug: Show current working directory
         print(f"🔍 Current working directory: {os.getcwd()}")
+        print(f"🔍 __file__ location: {__file__}")
+        print(f"🔍 Absolute file path: {os.path.abspath(__file__)}")
         
         # Create databases directory
         db_dir = os.path.dirname(config.DATABASE_PATH)
@@ -169,7 +171,7 @@ def ensure_directories():
         print(f"✅ Database directory ensured: {db_dir}")
         
         # Create data directory
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
         print(f"🔍 Data directory path: {data_dir}")
         os.makedirs(data_dir, exist_ok=True)
         print(f"✅ Data directory ensured: {data_dir}")
@@ -177,16 +179,70 @@ def ensure_directories():
         # Check if files actually exist
         if os.path.exists(config.DATABASE_PATH):
             print(f"✅ Database file exists: {config.DATABASE_PATH}")
+            # Check file size
+            size = os.path.getsize(config.DATABASE_PATH)
+            print(f"📊 Database file size: {size} bytes")
         else:
             print(f"❌ Database file missing: {config.DATABASE_PATH}")
             
         if os.path.exists(config.FOOD_DATABASE_PATH):
             print(f"✅ Food database exists: {config.FOOD_DATABASE_PATH}")
+            size = os.path.getsize(config.FOOD_DATABASE_PATH)
+            print(f"📊 Food database size: {size} bytes")
         else:
             print(f"❌ Food database missing: {config.FOOD_DATABASE_PATH}")
         
+        # List contents of key directories
+        print(f"\n📁 Contents of project root:")
+        try:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if os.path.exists(project_root):
+                for item in os.listdir(project_root):
+                    item_path = os.path.join(project_root, item)
+                    if os.path.isdir(item_path):
+                        print(f"   📁 {item}/")
+                    else:
+                        size = os.path.getsize(item_path)
+                        print(f"   📄 {item} ({size} bytes)")
+            else:
+                print(f"   ❌ Project root not found: {project_root}")
+        except Exception as e:
+            print(f"   ⚠️  Error listing project root: {e}")
+        
+        print(f"\n📁 Contents of databases directory:")
+        try:
+            if os.path.exists(db_dir):
+                for item in os.listdir(db_dir):
+                    item_path = os.path.join(db_dir, item)
+                    if os.path.isdir(item_path):
+                        print(f"   📁 {item}/")
+                    else:
+                        size = os.path.getsize(item_path)
+                        print(f"   📄 {item} ({size} bytes)")
+            else:
+                print(f"   ❌ Databases directory not found: {db_dir}")
+        except Exception as e:
+            print(f"   ⚠️  Error listing databases directory: {e}")
+        
+        print(f"\n📁 Contents of data directory:")
+        try:
+            if os.path.exists(data_dir):
+                for item in os.listdir(data_dir):
+                    item_path = os.path.join(data_dir, item)
+                    if os.path.isdir(item_path):
+                        print(f"   📁 {item}/")
+                    else:
+                        size = os.path.getsize(item_path)
+                        print(f"   📄 {item} ({size} bytes)")
+            else:
+                print(f"   ❌ Data directory not found: {data_dir}")
+        except Exception as e:
+            print(f"   ⚠️  Error listing data directory: {e}")
+        
     except Exception as e:
         print(f"⚠️  Error creating directories: {e}")
+        import traceback
+        traceback.print_exc()
 
 # Create directories before initializing services
 ensure_directories()
@@ -782,36 +838,79 @@ class EnhancedMessageProcessor:
 def signalwire_webhook():
     """Handle incoming SMS from SignalWire"""
     try:
-        data = request.get_json()
+        print(f"\n📱 === SIGNALWIRE WEBHOOK RECEIVED ===")
+        print(f"📱 Request method: {request.method}")
+        print(f"📱 Request headers: {dict(request.headers)}")
+        print(f"📱 Request content type: {request.content_type}")
+        
+        # Get raw data
+        raw_data = request.get_data()
+        print(f"📱 Raw request data: {raw_data}")
+        
+        # Try to parse JSON
+        try:
+            data = request.get_json()
+            print(f"📱 Parsed JSON data: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON parsing failed: {json_error}")
+            # Try form data instead
+            form_data = request.form.to_dict()
+            print(f"📱 Form data: {form_data}")
+            data = form_data
         
         # Extract SMS data from SignalWire webhook
-        if data.get('type') == 'message':
-            from_number = data.get('from_number')
-            to_number = data.get('to_number')
-            message_body = data.get('body', '')
-            message_id = data.get('id')
+        if data:
+            print(f"📱 Processing data: {data}")
             
-            print(f"📱 SignalWire SMS received from {from_number}: {message_body}")
+            # Try different possible field names
+            from_number = data.get('from_number') or data.get('From') or data.get('from')
+            to_number = data.get('to_number') or data.get('To') or data.get('to')
+            message_body = data.get('body') or data.get('Body') or data.get('message') or data.get('text')
+            message_id = data.get('id') or data.get('MessageSid')
             
-            # Process the message
-            processor = EnhancedMessageProcessor()
-            response_text = processor.process_message(message_body)
+            print(f"📱 Extracted data:")
+            print(f"   From: {from_number}")
+            print(f"   To: {to_number}")
+            print(f"   Body: {message_body}")
+            print(f"   ID: {message_id}")
             
-            # Send response back via SignalWire
-            if response_text:
-                result = communication_service.send_response(response_text, from_number)
+            if message_body and from_number:
+                print(f"✅ Valid SMS data received, processing message...")
                 
-                if result['success']:
-                    print(f"✅ Response sent via {result['method']}: {response_text}")
+                # Process the message
+                processor = EnhancedMessageProcessor()
+                response_text = processor.process_message(message_body)
+                
+                print(f"🧠 NLP processing complete:")
+                print(f"   Response: {response_text}")
+                
+                # Send response back via SignalWire
+                if response_text:
+                    print(f"📤 Sending response via communication service...")
+                    result = communication_service.send_response(response_text, from_number)
+                    
+                    print(f"📤 Communication service result: {result}")
+                    
+                    if result['success']:
+                        print(f"✅ Response sent via {result['method']}: {response_text}")
+                    else:
+                        print(f"❌ Failed to send response: {result.get('error', 'Unknown error')}")
                 else:
-                    print(f"❌ Failed to send response: {result.get('error', 'Unknown error')}")
-            
-            return jsonify({'status': 'success', 'message_id': message_id}), 200
+                    print(f"⚠️  No response generated for message")
+            else:
+                print(f"❌ Missing required SMS data (body or from_number)")
+                print(f"   Available fields: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
         else:
-            return jsonify({'status': 'ignored', 'type': data.get('type')}), 200
+            print(f"❌ No data received in webhook")
+        
+        print(f"📱 === WEBHOOK PROCESSING COMPLETE ===\n")
+        
+        return jsonify({'status': 'success', 'message_id': message_id if 'message_id' in locals() else None}), 200
             
     except Exception as e:
         print(f"❌ Error processing SignalWire webhook: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 @app.route('/webhook/gmail', methods=['POST'])
@@ -882,36 +981,62 @@ def sms_webhook():
 def health_check():
     """Health check endpoint for local testing"""
     try:
-        # Get database stats
-        conn = sqlite3.connect(config.DATABASE_PATH)
-        cursor = conn.cursor()
+        print(f"\n🏥 === HEALTH CHECK REQUESTED ===")
         
-        # Count records in each table
-        cursor.execute('SELECT COUNT(*) FROM food_logs')
-        food_count = cursor.fetchone()[0]
+        # Test database connection
+        print(f"🔍 Testing database connection...")
+        print(f"🔍 Database path: {config.DATABASE_PATH}")
         
-        cursor.execute('SELECT COUNT(*) FROM water_logs')
-        water_count = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT COUNT(*) FROM gym_logs')
-        gym_count = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT COUNT(*) FROM reminders_todos')
-        reminder_count = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT COUNT(*) FROM calendar_events')
-        calendar_count = cursor.fetchone()[0]
-        
-        conn.close()
+        try:
+            conn = sqlite3.connect(config.DATABASE_PATH)
+            print(f"✅ Database connection successful")
+            
+            cursor = conn.cursor()
+            
+            # Test basic query
+            cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
+            tables = cursor.fetchall()
+            print(f"📊 Found {len(tables)} tables: {[table[0] for table in tables]}")
+            
+            # Count records in each table
+            cursor.execute('SELECT COUNT(*) FROM food_logs')
+            food_count = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM water_logs')
+            water_count = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM gym_logs')
+            gym_count = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM reminders_todos')
+            reminder_count = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM calendar_events')
+            calendar_count = cursor.fetchone()[0]
+            
+            conn.close()
+            print(f"✅ Database queries completed successfully")
+            
+        except Exception as db_error:
+            print(f"❌ Database error: {db_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                "status": "error",
+                "error": f"Database error: {str(db_error)}",
+                "timestamp": datetime.now().isoformat()
+            }), 500
         
         # Get communication service status
+        print(f"🔍 Getting communication service status...")
         comm_status = communication_service.get_status()
+        print(f"📱 Communication status: {comm_status}")
         
-        return jsonify({
+        response_data = {
             "status": "healthy", 
             "timestamp": datetime.now().isoformat(),
-            "service": "Alfred the Butler (Local)",
-            "environment": "development",
+            "service": "Alfred the Butler (Cloud)",
+            "environment": "production",
             "communication": comm_status,
             "database_stats": {
                 "food_logs": food_count,
@@ -925,8 +1050,17 @@ def health_check():
                 "Reminder Checker (every 1m)",
                 "Daily Database Dump (5:00 AM)"
             ]
-        })
+        }
+        
+        print(f"✅ Health check completed successfully")
+        print(f"🏥 === HEALTH CHECK COMPLETE ===\n")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
+        print(f"❌ Health check error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "error",
             "error": str(e),
